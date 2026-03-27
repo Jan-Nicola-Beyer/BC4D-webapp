@@ -33,14 +33,21 @@ class ValidationScreen(ctk.CTkFrame):
         self._build()
 
     def _build(self):
+        from bc4d_intel.ui.guide import workflow_steps, info_banner
+
         # ── Top bar ──
-        top = W.make_toolbar(self, height=80)
+        top = W.make_toolbar(self, height=100)
         inner = ctk.CTkFrame(top, fg_color="transparent")
-        inner.pack(fill="x", padx=30, pady=12)
+        inner.pack(fill="x", padx=30, pady=8)
 
-        W.heading(inner, "Validation", size=22).pack(side="left")
+        # Step indicator
+        workflow_steps(inner, current_step=2).pack(anchor="w", pady=(0, 4))
 
-        btn_row = ctk.CTkFrame(inner, fg_color="transparent")
+        row = ctk.CTkFrame(inner, fg_color="transparent")
+        row.pack(fill="x")
+        W.heading(row, "Validation", size=22).pack(side="left")
+
+        btn_row = ctk.CTkFrame(row, fg_color="transparent")
         btn_row.pack(side="right")
 
         self._tag_btn = W.accent_button(btn_row, text="Run AI Tagging",
@@ -70,9 +77,16 @@ class ValidationScreen(ctk.CTkFrame):
         self._question_frame = ctk.CTkScrollableFrame(left, fg_color="transparent")
         self._question_frame.pack(fill="both", expand=True, padx=6, pady=6)
 
-        W.muted_label(self._question_frame,
-            "Load data and run AI Tagging\nto see free-text questions here.",
-            size=11).pack(padx=10, pady=20)
+        info_banner(self._question_frame,
+            "How Validation works",
+            "1. Click 'Run AI Tagging' — AI reads each open response and assigns a category\n"
+            "2. Review the tags — filter by confidence level to focus on uncertain ones\n"
+            "3. Override where needed — accept, change tag, or flag for discussion\n"
+            "4. When done, go to Report — your validated tags feed into the report\n\n"
+            f"Cost: ~$0.50 for Sonnet tagging of all responses.\n"
+            f"Time: ~2-5 minutes depending on the number of responses.",
+            icon="\U0001F4CB",
+        ).pack(fill="x", padx=4, pady=8)
 
         # Right: response cards
         right = W.make_card(body)
@@ -122,7 +136,7 @@ class ValidationScreen(ctk.CTkFrame):
             size=11).pack(padx=10, pady=20)
 
     def _run_tagging(self):
-        """Run AI tagging on all free-text columns."""
+        """Run AI tagging on all free-text columns with progress tracking."""
         if not hasattr(self.app, "_match_result") or not self.app._match_result:
             self._status_lbl.configure(text="Load data first.", text_color=C.DANGER)
             return
@@ -132,8 +146,40 @@ class ValidationScreen(ctk.CTkFrame):
             self._status_lbl.configure(text="Set API key in Settings first.", text_color=C.DANGER)
             return
 
+        # Count total responses to estimate time
+        import_screen = self.app._frames.get("import")
+        if not import_screen:
+            return
+        result = self.app._match_result
+        total_responses = 0
+        for survey_type, df_key, roles in [
+            ("Pre", "pre_all", import_screen._pre_roles),
+            ("Post", "post_all", import_screen._post_roles),
+        ]:
+            df = result[df_key]
+            for c, r in roles.items():
+                if r == "free_text":
+                    total_responses += df[c].dropna().astype(str).apply(lambda x: len(x.strip()) > 5).sum()
+
+        n_batches = (total_responses + 19) // 20
+        est_time = n_batches * 5  # ~5 sec per batch
+
         self._tag_btn.configure(state="disabled", text="Tagging...")
-        self._status_lbl.configure(text="Starting AI tagging...", text_color=C.ACCENT)
+        self._status_lbl.configure(text=f"Tagging {total_responses} responses in {n_batches} batches (~{est_time//60}m{est_time%60:02d}s)...",
+                                    text_color=C.ACCENT)
+
+        # Show progress panel in the response area
+        for w in self._response_frame.winfo_children():
+            w.destroy()
+        from bc4d_intel.ui.guide import progress_panel
+        self._progress = progress_panel(self._response_frame)
+        self._progress["frame"].pack(fill="x", padx=8, pady=20)
+        n_questions = sum(1 for r in {**import_screen._pre_roles, **import_screen._post_roles}.values() if r == "free_text")
+        self._progress["detail_label"].configure(
+            text=f"Processing {total_responses} responses across {n_questions} questions...")
+
+        import time
+        self._tag_start_time = time.time()
 
         def work():
             from bc4d_intel.ai.tagger import tag_responses
@@ -144,6 +190,9 @@ class ValidationScreen(ctk.CTkFrame):
             # Collect all free-text columns from both surveys
             result = self.app._match_result
             tagged = {}
+            questions_done = [0]
+            total_questions = [sum(1 for r in import_screen._pre_roles.values() if r == "free_text") +
+                               sum(1 for r in import_screen._post_roles.values() if r == "free_text")]
 
             for survey_type, df_key, roles in [
                 ("Pre", "pre_all", import_screen._pre_roles),
@@ -159,10 +208,20 @@ class ValidationScreen(ctk.CTkFrame):
                         continue
 
                     label = f"[{survey_type}] {col[:50]}"
+                    questions_done[0] += 1
 
-                    def on_progress(msg, lbl=label):
-                        self.after(0, lambda m=msg: self._status_lbl.configure(
-                            text=m, text_color=C.ACCENT))
+                    def on_progress(msg, lbl=label, qd=questions_done[0], tq=total_questions[0]):
+                        # Update progress panel
+                        import re as _re
+                        m = _re.search(r'(\d+)/(\d+)', msg)
+                        if m:
+                            batch_done = int(m.group(1))
+                            batch_total = int(m.group(2))
+                            overall_pct = (qd - 1 + batch_done / max(batch_total, 1)) / max(tq, 1)
+                        else:
+                            overall_pct = qd / max(tq, 1)
+                        pct_int = min(int(overall_pct * 100), 99)
+                        self.after(0, lambda p=overall_pct, pi=pct_int, m2=msg: self._update_progress(p, pi, m2))
 
                     try:
                         tags = tag_responses(responses, api_key, progress_cb=on_progress)
@@ -180,6 +239,20 @@ class ValidationScreen(ctk.CTkFrame):
             self.after(0, self._on_tagging_complete)
 
         threading.Thread(target=work, daemon=True).start()
+
+    def _update_progress(self, pct_float, pct_int, detail):
+        """Update the progress panel during tagging."""
+        if hasattr(self, "_progress") and self._progress:
+            self._progress["bar"].set(pct_float)
+            self._progress["pct_label"].configure(text=f"{pct_int}%")
+            self._progress["detail_label"].configure(text=detail)
+            elapsed = getattr(self, "_tag_start_time", None)
+            if elapsed:
+                import time
+                elapsed_s = int(time.time() - elapsed)
+                if pct_float > 0.05:
+                    eta_s = int(elapsed_s / pct_float * (1 - pct_float))
+                    self._progress["eta_label"].configure(text=f"~{eta_s//60}m{eta_s%60:02d}s remaining")
 
     def _on_tagging_complete(self):
         self._tag_btn.configure(state="normal", text="Run AI Tagging")

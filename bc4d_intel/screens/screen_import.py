@@ -34,12 +34,16 @@ class ImportScreen(ctk.CTkFrame):
         self._build()
 
     def _build(self):
+        from bc4d_intel.ui.guide import workflow_steps
+
         # ── Top bar ──
-        top = W.make_toolbar(self, height=80)
+        top = W.make_toolbar(self, height=100)
         inner = ctk.CTkFrame(top, fg_color="transparent")
-        inner.pack(fill="x", padx=30, pady=12)
+        inner.pack(fill="x", padx=30, pady=8)
+
+        workflow_steps(inner, current_step=0).pack(anchor="w", pady=(0, 4))
         W.heading(inner, "Import Data", size=22).pack(anchor="w")
-        W.muted_label(inner, "Load pre-survey and post-survey Excel files").pack(anchor="w")
+        W.muted_label(inner, "Load both Excel files. The system auto-detects column types and matches respondents.").pack(anchor="w")
 
         # ── Body: two-column layout ──
         body = ctk.CTkFrame(self, fg_color="transparent")

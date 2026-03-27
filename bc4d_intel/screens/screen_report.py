@@ -34,12 +34,17 @@ class ReportScreen(ctk.CTkFrame):
         self._build()
 
     def _build(self):
-        # ── Top bar ──
-        top = W.make_toolbar(self, height=80)
-        inner = ctk.CTkFrame(top, fg_color="transparent")
-        inner.pack(fill="x", padx=30, pady=12)
+        from bc4d_intel.ui.guide import workflow_steps
 
-        W.heading(inner, "Report", size=22).pack(side="left")
+        # ── Top bar ──
+        top = W.make_toolbar(self, height=100)
+        inner = ctk.CTkFrame(top, fg_color="transparent")
+        inner.pack(fill="x", padx=30, pady=8)
+
+        workflow_steps(inner, current_step=3).pack(anchor="w", pady=(0, 4))
+        row = ctk.CTkFrame(inner, fg_color="transparent")
+        row.pack(fill="x")
+        W.heading(row, "Report", size=22).pack(side="left")
 
         btn_row = ctk.CTkFrame(inner, fg_color="transparent")
         btn_row.pack(side="right")

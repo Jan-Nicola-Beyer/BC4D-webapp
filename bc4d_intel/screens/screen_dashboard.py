@@ -22,11 +22,17 @@ class DashboardScreen(ctk.CTkFrame):
         self._build()
 
     def _build(self):
+        from bc4d_intel.ui.guide import workflow_steps
+
         # ── Top bar ──
-        top = W.make_toolbar(self, height=80)
+        top = W.make_toolbar(self, height=100)
         inner = ctk.CTkFrame(top, fg_color="transparent")
-        inner.pack(fill="x", padx=30, pady=12)
-        W.heading(inner, "Dashboard", size=22).pack(side="left")
+        inner.pack(fill="x", padx=30, pady=8)
+
+        workflow_steps(inner, current_step=1).pack(anchor="w", pady=(0, 4))
+        row = ctk.CTkFrame(inner, fg_color="transparent")
+        row.pack(fill="x")
+        W.heading(row, "Dashboard", size=22).pack(side="left")
 
         # Tab selector
         self._tab_var = ctk.StringVar(value="pre")
@@ -38,6 +44,11 @@ class DashboardScreen(ctk.CTkFrame):
             command=self._on_tab_change,
         )
         self._tab_selector.pack(side="right")
+
+        # Next step hint
+        ctk.CTkLabel(inner, text="Review charts, then go to Validation to tag free-text responses",
+                     font=ctk.CTkFont(family="Segoe UI", size=9),
+                     text_color=C.MUTED).pack(anchor="w")
 
         # ── Chart area (scrollable) ──
         self._chart_frame = ctk.CTkScrollableFrame(self, fg_color=C.BG)
