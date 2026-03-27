@@ -100,13 +100,31 @@ def design_taxonomy(
 
     try:
         resp = call_claude(
-            system="Du bist ein*e erfahrene*r qualitative*r Forscher*in. Antworte nur mit validem JSON.",
+            system="Du bist ein*e erfahrene*r qualitative*r Forscher*in. Antworte nur mit validem JSON. Halte die Taxonomie kompakt — maximal 5 Hauptkategorien mit je 2-3 Unterkategorien. Verwende kurze Beispiele (max 50 Zeichen pro Beispiel).",
             user_msg=prompt,
             task="report",  # Sonnet for quality reasoning
             api_key=api_key,
-            max_tokens=3000,
+            max_tokens=4000,
         )
-        return _parse_taxonomy(resp)
+        result = _parse_taxonomy(resp)
+        if result.get("categories"):
+            return result
+
+        # If parsing failed, try with even shorter instruction
+        log.warning("First taxonomy attempt failed, retrying with shorter prompt...")
+        short_prompt = (
+            f"Erstelle eine Taxonomie fuer {len(responses)} Antworten auf: \"{question[:60]}\"\n\n"
+            f"Beispiele:\n" + "\n".join(f"- {r[:80]}" for r in responses[:30]) + "\n\n"
+            f"JSON mit maximal 5 Hauptkategorien, je 2 Unterkategorien. Kurz und kompakt."
+        )
+        resp2 = call_claude(
+            system="Antworte NUR mit JSON. Kein Markdown. Format: {\"categories\": [{\"id\": \"c1\", \"main_category\": \"Titel\", \"sub_categories\": [{\"id\": \"c1a\", \"title\": \"Sub\", \"examples\": [\"Bsp\"], \"include_rule\": \"Regel\", \"exclude_rule\": \"Ausschluss\"}]}]}",
+            user_msg=short_prompt,
+            task="report",
+            api_key=api_key,
+            max_tokens=2000,
+        )
+        return _parse_taxonomy(resp2)
     except Exception as e:
         log.warning("Taxonomy design failed: %s", e)
         return {"categories": [{"id": "cat_1", "main_category": "Allgemein",
@@ -251,7 +269,7 @@ def review_edge_cases(
                 api_key=api_key,
                 max_tokens=400,
             )
-            m = re.search(r'\[.*\]', resp, re.DOTALL)
+            m = re.search(r'\[.*\]', _strip_markdown(resp), re.DOTALL)
             if m:
                 parsed = json.loads(m.group())
                 for item in parsed:
@@ -347,18 +365,50 @@ def full_pipeline(
 
 # ── Helpers ──────────────────────────────────────────────────────
 
+def _strip_markdown(text: str) -> str:
+    """Strip markdown code block wrappers from LLM responses."""
+    cleaned = re.sub(r'```json\s*', '', text)
+    cleaned = re.sub(r'```\s*', '', cleaned)
+    return cleaned.strip()
+
+
 def _parse_taxonomy(response: str) -> Dict:
-    """Parse hierarchical taxonomy JSON from LLM response."""
-    m = re.search(r'\{.*\}', response, re.DOTALL)
-    if not m:
-        return {"categories": []}
+    """Parse hierarchical taxonomy JSON from LLM response.
+
+    Handles markdown code blocks (```json ... ```) that Sonnet often wraps around JSON.
+    """
+    # Strip markdown code blocks
+    cleaned = re.sub(r'```json\s*', '', response)
+    cleaned = re.sub(r'```\s*', '', cleaned).strip()
+
+    # Try direct parse first
     try:
-        parsed = json.loads(m.group())
+        parsed = json.loads(cleaned)
         if "categories" in parsed:
             return parsed
-        return {"categories": []}
     except json.JSONDecodeError:
-        return {"categories": []}
+        pass
+
+    # Fallback: find outermost braces with depth tracking
+    depth = 0
+    start = -1
+    for i, ch in enumerate(cleaned):
+        if ch == '{':
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0 and start >= 0:
+                try:
+                    parsed = json.loads(cleaned[start:i + 1])
+                    if "categories" in parsed:
+                        return parsed
+                except json.JSONDecodeError:
+                    continue
+
+    log.warning("Could not parse taxonomy JSON from response (%d chars)", len(response))
+    return {"categories": []}
 
 
 def _fallback_classify(responses: List[str], taxonomy: Dict) -> List[Dict]:
