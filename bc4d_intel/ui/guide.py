@@ -52,26 +52,23 @@ def info_banner(parent, title: str, body: str, icon: str = "\u2139",
         icon: Unicode icon
         color: Background color (default: blue tint)
     """
-    bg = color or "#1a2744"
+    bg = color or "#1e293b"
     frame = ctk.CTkFrame(parent, fg_color=bg, corner_radius=8)
 
     inner = ctk.CTkFrame(frame, fg_color="transparent")
-    inner.pack(fill="x", padx=14, pady=10)
-
-    header = ctk.CTkFrame(inner, fg_color="transparent")
-    header.pack(fill="x")
+    inner.pack(fill="x", padx=16, pady=12)
 
     ctk.CTkLabel(
-        header, text=f"{icon} {title}",
-        font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
-        text_color="#e6edf3",
-    ).pack(anchor="w")
+        inner, text=f"{icon} {title}",
+        font=ctk.CTkFont(family="Segoe UI", size=14, weight="bold"),
+        text_color="#f1f5f9",
+    ).pack(anchor="w", pady=(0, 6))
 
     ctk.CTkLabel(
         inner, text=body,
-        font=ctk.CTkFont(family="Segoe UI", size=10),
-        text_color="#b0bec5", wraplength=500, justify="left",
-    ).pack(anchor="w", pady=(4, 0))
+        font=ctk.CTkFont(family="Segoe UI", size=11),
+        text_color="#e2e8f0", wraplength=450, justify="left",
+    ).pack(anchor="w")
 
     return frame
 
