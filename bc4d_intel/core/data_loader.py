@@ -176,12 +176,31 @@ def normalize_likert_column(series: pd.Series) -> pd.Series:
 
 # ── Main loading function ────────────────────────────────────────
 
+def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """Clean common data issues in survey exports.
+
+    - Strip trailing semicolons from categorical values
+      (e.g., "Weiblich;" → "Weiblich")
+    - Strip whitespace from string values
+    - Normalize unicode whitespace
+    """
+    for col in df.columns:
+        if df[col].dtype == object:
+            df[col] = (df[col].astype(str)
+                       .str.strip()
+                       .str.rstrip(";")
+                       .str.strip()
+                       .replace("nan", pd.NA))
+    return df
+
+
 def load_survey(path: str) -> Tuple[pd.DataFrame, Dict[str, str]]:
-    """Load an Excel survey file and detect column roles.
+    """Load an Excel survey file, clean it, and detect column roles.
 
     Returns (DataFrame, {col_name: role})
     """
     df = pd.read_excel(path)
+    df = _clean_dataframe(df)
     log.info("Loaded %s: %d rows, %d columns", path.split("/")[-1].split("\\")[-1],
              len(df), len(df.columns))
 
