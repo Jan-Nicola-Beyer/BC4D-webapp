@@ -14,7 +14,9 @@ log = logging.getLogger("bc4d_intel.app")
 _FRAME_REGISTRY = {
     "import":      ("bc4d_intel.screens.screen_import",      "ImportScreen"),
     "dashboard":   ("bc4d_intel.screens.screen_dashboard",   "DashboardScreen"),
-    "validation":  ("bc4d_intel.screens.screen_validation",  "ValidationScreen"),
+    "analysis":    ("bc4d_intel.screens.screen_analysis",    "AnalysisScreen"),
+    "clusters":    ("bc4d_intel.screens.screen_clusters",    "ClustersScreen"),
+    "responses":   ("bc4d_intel.screens.screen_responses",   "ResponsesScreen"),
     "report":      ("bc4d_intel.screens.screen_report",      "ReportScreen"),
     "settings":    ("bc4d_intel.screens.screen_settings",    "SettingsScreen"),
 }

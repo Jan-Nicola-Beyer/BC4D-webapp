@@ -65,11 +65,13 @@ def current_theme() -> str:
 
 # ── Navigation ───────────────────────────────────────────────────
 NAV_ITEMS = [
-    ("Import",      "import",      "\U0001F4C2"),  # folder
-    ("Dashboard",   "dashboard",   "\U0001F4CA"),  # chart
-    ("Validation",  "validation",  "\u2714"),       # checkmark
-    ("Report",      "report",      "\U0001F4DD"),  # memo
-    ("Settings",    "settings",    "\u2699"),       # gear
+    ("Import",       "import",      "\U0001F4C2"),  # folder
+    ("Dashboard",    "dashboard",   "\U0001F4CA"),  # chart
+    ("AI Analysis",  "analysis",    "\U0001F916"),  # robot
+    ("Clusters",     "clusters",    "\U0001F3AF"),  # target
+    ("Responses",    "responses",   "\U0001F4DD"),  # memo
+    ("Report",       "report",      "\U0001F4C4"),  # document
+    ("Settings",     "settings",    "\u2699"),       # gear
 ]
 
 # ── Likert scale config ─────────────────────────────────────────
