@@ -81,19 +81,20 @@ class ValidationScreen(ctk.CTkFrame):
 
         info_banner(self._left_scroll,
             "How it works",
-            "1. Click 'Analyze Free Text' — AI reads ALL responses and discovers "
-            "thematic clusters (groups of similar answers)\n"
+            "1. Click 'Analyze Free Text' — the system uses embedding-first clustering:\n"
+            "   a) Embeds all responses into vectors (local, free, instant)\n"
+            "   b) HDBSCAN discovers natural clusters (no forced category count)\n"
+            "   c) AI names each cluster from the most representative responses\n"
             "2. Review the clusters on the left — click a title to rename it\n"
-            "3. Check individual responses in the center — use the dropdown to "
-            "move a response to a different cluster if the AI got it wrong\n"
-            "4. The chart on the right updates live as you validate\n\n"
+            "3. The semantic map (right) shows how responses group visually\n"
+            "4. Check responses in the center — reassign if the clustering is wrong\n\n"
             "Confidence levels (shown as HIG / MED / LOW):\n"
-            "  HIG = AI is confident this response clearly belongs to one cluster\n"
-            "  MED = Response could fit 2 clusters, AI picked the more likely one\n"
-            "  LOW = Response is ambiguous or very short — needs your review\n\n"
-            "Tip: Use 'Accept All High' to quickly validate confident assignments, "
-            "then filter by 'Low confidence' to focus your review.\n\n"
-            "Cost: ~$0.50 | Time: 2-5 minutes",
+            "  HIG = Response is close to its cluster center (mathematically certain)\n"
+            "  MED = Response is between clusters (could go either way)\n"
+            "  LOW = Response is far from all clusters (outlier/noise)\n\n"
+            "Tip: 'Accept All High' validates mathematically certain assignments. "
+            "Then filter 'Low confidence' to focus on edge cases.\n\n"
+            "Cost: Embedding free (local) | Naming ~$0.10 | Total ~$0.15",
             icon="\U0001F50D",
         ).pack(fill="x", padx=4, pady=4)
 
@@ -153,7 +154,7 @@ class ValidationScreen(ctk.CTkFrame):
     # ── Analysis flow ────────────────────────────────────────────
 
     def _run_analysis(self):
-        """Two-pass analysis: induce taxonomy, then classify."""
+        """Embedding-first analysis: embed → cluster → name → classify."""
         if not hasattr(self.app, "_match_result") or not self.app._match_result:
             self._status_lbl.configure(text="Load data first.", text_color=C.DANGER)
             return
@@ -176,7 +177,7 @@ class ValidationScreen(ctk.CTkFrame):
         self._analysis_start = time.time()
 
         def work():
-            from bc4d_intel.ai.tagger import induce_taxonomy, classify_responses
+            from bc4d_intel.core.embedder import full_pipeline
             import_screen = self.app._frames.get("import")
             if not import_screen:
                 return
@@ -185,6 +186,7 @@ class ValidationScreen(ctk.CTkFrame):
             questions = {}
             taxonomies = {}
             classifications = {}
+            umap_data = {}
 
             # Collect free-text questions
             all_ft = []
@@ -197,39 +199,40 @@ class ValidationScreen(ctk.CTkFrame):
                 for col in ft_cols:
                     responses = [r for r in df[col].dropna().astype(str).tolist()
                                  if len(r.strip()) > 5]
-                    if responses:
+                    if len(responses) >= 10:  # need minimum for clustering
                         label = f"[{survey_type}] {col[:45]}"
-                        all_ft.append((label, col, responses))
+                        all_ft.append((label, responses))
 
             total_q = len(all_ft)
-            total_r = sum(len(r) for _, _, r in all_ft)
+            total_r = sum(len(r) for _, r in all_ft)
 
-            for qi, (label, col_name, responses) in enumerate(all_ft):
-                # Pass 1: Induce taxonomy
+            for qi, (label, responses) in enumerate(all_ft):
                 pct = qi / max(total_q, 1)
-                self.after(0, lambda p=pct, l=label: self._update_progress(
-                    p, int(p * 100), f"Pass 1: Discovering themes for '{l[:30]}...'"))
-
-                taxonomy = induce_taxonomy(col_name, responses, api_key)
-                taxonomies[label] = taxonomy
-                questions[label] = responses
-
-                # Pass 2: Classify
-                pct2 = (qi + 0.5) / max(total_q, 1)
-                self.after(0, lambda p=pct2, l=label, n=len(responses):
+                self.after(0, lambda p=pct, l=label, n=len(responses):
                     self._update_progress(p, int(p * 100),
-                        f"Pass 2: Classifying {n} responses for '{l[:30]}...'"))
+                        f"Analyzing '{l[:30]}...' ({n} responses)"))
 
-                def on_classify_progress(msg):
+                def on_progress(msg):
                     self.after(0, lambda m=msg: self._progress["detail_label"].configure(text=m))
 
-                classified = classify_responses(responses, taxonomy, api_key,
-                                                progress_cb=on_classify_progress)
-                classifications[label] = classified
+                try:
+                    result_q = full_pipeline(responses, api_key, progress_cb=on_progress)
+                    taxonomies[label] = result_q["taxonomy"]
+                    classifications[label] = result_q["classifications"]
+                    questions[label] = responses
+                    umap_data[label] = {
+                        "coords": result_q["umap_coords"],
+                        "labels": result_q["labels"],
+                    }
+                except Exception as e:
+                    self.after(0, lambda err=str(e): self._status_lbl.configure(
+                        text=f"Error: {err}", text_color=C.DANGER))
+                    log.warning("Pipeline failed for %s: %s", label, e)
 
             self._questions = questions
             self._taxonomies = taxonomies
             self._classifications = classifications
+            self._umap_data = umap_data
 
             # Save to app state
             self.app.app_state.tagged_responses = {
@@ -428,7 +431,7 @@ class ValidationScreen(ctk.CTkFrame):
     # ── Right panel: distribution chart ──────────────────────────
 
     def _update_chart(self):
-        """Update the distribution chart for the current question."""
+        """Update the right panel: UMAP scatter plot + distribution bars."""
         for w in self._chart_frame.winfo_children():
             w.destroy()
 
@@ -446,10 +449,50 @@ class ValidationScreen(ctk.CTkFrame):
         for item in classified:
             cid = item.get("human_override") or item["cluster_id"]
             counts[cid] = counts.get(cid, 0) + 1
-
         total = len(classified)
 
-        # Build bar chart data
+        # UMAP scatter plot (if available)
+        umap_info = getattr(self, "_umap_data", {}).get(self._current_question)
+        if umap_info is not None:
+            try:
+                from bc4d_intel.core.chart_builder import _ensure_mpl, _apply_style
+                _ensure_mpl()
+                import matplotlib.pyplot as plt
+                from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+                coords = umap_info["coords"]
+                labels = umap_info["labels"]
+
+                fig, ax = plt.subplots(figsize=(4, 3.5))
+                _apply_style(fig, ax)
+
+                for ci, cluster in enumerate(taxonomy):
+                    cid_num = ci if cluster["id"] != "noise" else -1
+                    mask = labels == cid_num
+                    if mask.any():
+                        color = CLUSTER_COLORS[ci % len(CLUSTER_COLORS)]
+                        ax.scatter(coords[mask, 0], coords[mask, 1],
+                                   c=color, s=12, alpha=0.7,
+                                   label=cluster["title"][:15])
+
+                ax.set_title("Semantic Map", fontsize=11, fontweight="bold", pad=6)
+                ax.set_xticks([])
+                ax.set_yticks([])
+                ax.legend(fontsize=7, loc="upper right", facecolor="#161b22",
+                          edgecolor="#30363d", labelcolor="#9ca3af")
+                fig.tight_layout()
+
+                canvas = FigureCanvasTkAgg(fig, master=self._chart_frame)
+                canvas.draw()
+                canvas.get_tk_widget().pack(fill="x", padx=4, pady=4)
+            except Exception as e:
+                W.muted_label(self._chart_frame, f"Map error: {e}", size=9).pack(pady=4)
+
+        # Distribution bars (below the map)
+        ctk.CTkLabel(self._chart_frame, text="Distribution",
+                     font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+                     text_color=C.TEXT).pack(anchor="w", padx=4, pady=(8, 4))
+
         for ci, cluster in enumerate(taxonomy):
             color = CLUSTER_COLORS[ci % len(CLUSTER_COLORS)]
             count = counts.get(cluster["id"], 0)
@@ -458,13 +501,11 @@ class ValidationScreen(ctk.CTkFrame):
             row = ctk.CTkFrame(self._chart_frame, fg_color="transparent")
             row.pack(fill="x", padx=4, pady=2)
 
-            # Label
             ctk.CTkLabel(row, text=cluster["title"][:18],
                          font=ctk.CTkFont(family="Segoe UI", size=9),
-                         text_color=C.TEXT, width=110, anchor="w").pack(side="left")
+                         text_color=C.TEXT, width=100, anchor="w").pack(side="left")
 
-            # Bar
-            bar_frame = ctk.CTkFrame(row, fg_color=C.ENTRY_BG, height=16, corner_radius=3)
+            bar_frame = ctk.CTkFrame(row, fg_color=C.ENTRY_BG, height=14, corner_radius=3)
             bar_frame.pack(side="left", fill="x", expand=True, padx=4)
             bar_frame.pack_propagate(False)
 
@@ -472,8 +513,7 @@ class ValidationScreen(ctk.CTkFrame):
                 fill = ctk.CTkFrame(bar_frame, fg_color=color, corner_radius=3)
                 fill.place(relwidth=pct / 100, relheight=1.0)
 
-            # Count label
-            ctk.CTkLabel(row, text=f"{count} ({pct}%)", width=70,
+            ctk.CTkLabel(row, text=f"{count} ({pct}%)", width=65,
                          font=ctk.CTkFont(family="Consolas", size=9),
                          text_color=C.MUTED).pack(side="right")
 
