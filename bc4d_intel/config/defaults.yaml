@@ -1,0 +1,27 @@
+# BC4D Intel default configuration
+
+likert:
+  scale_min: 1
+  scale_max: 5
+  labels:
+    1: "Trifft gar nicht zu"
+    2: "Trifft eher nicht zu"
+    3: "Teils/Teils"
+    4: "Trifft eher zu"
+    5: "Trifft voll und ganz zu"
+
+matching:
+  pseudokey_street_chars: 4
+  pseudokey_birthday_format: "zero_padded_day"
+  fuzzy_threshold: 0.85
+
+ai:
+  tagging_model: "claude-haiku-4-5-20251001"
+  report_model: "claude-sonnet-4-6"
+  tagging_batch_size: 20
+  max_retries: 3
+
+export:
+  default_format: "docx"
+  chart_dpi: 150
+  include_appendix: true
