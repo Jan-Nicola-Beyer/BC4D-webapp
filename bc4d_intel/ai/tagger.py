@@ -1,8 +1,11 @@
-"""Batch free-text tagging via Haiku.
+"""Two-pass qualitative analysis: taxonomy induction + classification.
 
-Processes free-text survey responses in batches of 20.
-Returns [{text, tag, confidence, rationale}, ...] for each response.
-Cost: ~$0.05-0.15 per staffel (~700 responses).
+Pass 1 — INDUCE: AI reads all responses, discovers emergent thematic clusters.
+Pass 2 — CLASSIFY: AI assigns each response to a cluster.
+
+The user validates both:
+  - The taxonomy itself (rename, merge, split, add clusters)
+  - Individual cluster assignments (accept, reassign)
 """
 
 from __future__ import annotations
@@ -10,38 +13,115 @@ import json, logging, re
 from typing import Dict, List
 
 from bc4d_intel.ai.claude_client import call_claude
-from bc4d_intel.ai.prompts import TAGGING_SYSTEM, FREE_TEXT_TAGS
 
 log = logging.getLogger("bc4d_intel.ai.tagger")
 
-BATCH_SIZE = 20
+# ── Pass 1: Taxonomy induction ───────────────────────────────────
 
-TAG_PROMPT = """Tag each response below with exactly ONE tag from this list:
-{tags}
+INDUCE_SYSTEM = """Du bist ein*e qualitative*r Forschungsassistent*in fuer das BC4D-Programm.
 
-For each response, return a JSON array with objects:
-[{{"id": 1, "tag": "positive_feedback", "confidence": "high", "rationale": "..."}}]
+Du analysierst offene Antworten aus Evaluierungsbefragungen und entwickelst eine
+datengestuetzte Taxonomie (Cluster-System) fuer die thematische Gruppierung."""
 
-RESPONSES:
+INDUCE_PROMPT = """Lies alle folgenden Antworten auf die Frage: "{question}"
+
+Entwickle 4-8 thematische Cluster, die die Antworten sinnvoll gruppieren.
+Jeder Cluster soll:
+- Einen praegnanten deutschen Titel haben (3-6 Woerter)
+- Eine kurze Beschreibung (1 Satz)
+- Mindestens 3 Antworten abdecken
+
+Orientiere dich an den tatsaechlichen Inhalten, nicht an vordefinierten Kategorien.
+
+ANTWORTEN:
 {responses}
 
-Return ONLY the JSON array."""
+Antworte mit einem JSON-Array:
+[
+  {{"id": "cluster_1", "title": "Praxisnahe Inhalte", "description": "Teilnehmende schaetzten den Praxisbezug der Schulung."}},
+  {{"id": "cluster_2", "title": "Zeitmangel und Terminprobleme", "description": "Schwierigkeiten bei der zeitlichen Einbindung in den Arbeitsalltag."}}
+]
+
+NUR das JSON-Array zurueckgeben."""
+
+# ── Pass 2: Classification ───────────────────────────────────────
+
+CLASSIFY_SYSTEM = """Du bist ein*e qualitative*r Forschungsassistent*in. Du ordnest Antworten
+einer vorgegebenen Taxonomie zu. Jede Antwort gehoert zu genau EINEM Cluster."""
+
+CLASSIFY_PROMPT = """Ordne jede Antwort einem der folgenden Cluster zu:
+
+TAXONOMIE:
+{taxonomy}
+
+ANTWORTEN:
+{responses}
+
+Antworte mit einem JSON-Array:
+[{{"response_id": 1, "cluster_id": "cluster_1", "confidence": "high"}}]
+
+Konfidenz:
+- high: Antwort passt eindeutig zu einem Cluster
+- medium: Antwort koennte zu 2 Clustern passen
+- low: Antwort ist mehrdeutig oder passt schlecht
+
+NUR das JSON-Array zurueckgeben."""
+
+BATCH_SIZE = 25
 
 
-def tag_responses(
+def induce_taxonomy(
+    question: str,
     responses: List[str],
     api_key: str,
     progress_cb=None,
 ) -> List[Dict]:
-    """Tag a list of free-text responses via Haiku in batches.
+    """Pass 1: Read all responses and discover emergent thematic clusters.
 
-    Args:
-        responses: list of text strings to tag
-        api_key: Anthropic API key
-        progress_cb: optional callback(message) for progress
-
-    Returns list of {text, tag, confidence, rationale, human_override} dicts
+    Returns list of {id, title, description} cluster dicts.
     """
+    if progress_cb:
+        progress_cb("Reading all responses to discover themes...")
+
+    # Send a representative sample (max 80 responses for context window)
+    sample = responses[:80] if len(responses) > 80 else responses
+    formatted = "\n".join(f"- {r[:200]}" for r in sample)
+
+    prompt = INDUCE_PROMPT.format(
+        question=question[:100],
+        responses=formatted,
+    )
+
+    try:
+        response = call_claude(
+            system=INDUCE_SYSTEM,
+            user_msg=prompt,
+            task="report",  # Sonnet for quality reasoning
+            api_key=api_key,
+            max_tokens=1500,
+        )
+        return _parse_taxonomy(response)
+    except Exception as e:
+        log.warning("Taxonomy induction failed: %s", e)
+        return [{"id": "cluster_1", "title": "Allgemein", "description": f"Fehler: {e}"}]
+
+
+def classify_responses(
+    responses: List[str],
+    taxonomy: List[Dict],
+    api_key: str,
+    progress_cb=None,
+) -> List[Dict]:
+    """Pass 2: Assign each response to a cluster from the taxonomy.
+
+    Returns list of {text, cluster_id, confidence} dicts.
+    """
+    # Format taxonomy for prompt
+    tax_text = "\n".join(
+        f"- {c['id']}: {c['title']} — {c.get('description', '')}"
+        for c in taxonomy
+    )
+
     results = []
     total = len(responses)
     n_batches = (total + BATCH_SIZE - 1) // BATCH_SIZE
@@ -52,57 +132,69 @@ def tag_responses(
         batch = responses[start:end]
 
         if progress_cb:
-            progress_cb(f"Tagging batch {batch_idx + 1}/{n_batches} "
-                        f"({start + 1}-{end} of {total})")
+            pct = int((batch_idx + 1) / n_batches * 100)
+            progress_cb(f"Classifying batch {batch_idx + 1}/{n_batches} ({pct}%)")
 
-        # Format responses for the prompt
-        formatted = "\n".join(f"[{i + 1}] {text[:300]}" for i, text in enumerate(batch))
-
-        prompt = TAG_PROMPT.format(
-            tags=", ".join(FREE_TEXT_TAGS),
+        formatted = "\n".join(f"[{i + 1}] {r[:250]}" for i, r in enumerate(batch))
+        prompt = CLASSIFY_PROMPT.format(
+            taxonomy=tax_text,
             responses=formatted,
         )
 
         try:
             response = call_claude(
-                system=TAGGING_SYSTEM,
+                system=CLASSIFY_SYSTEM,
                 user_msg=prompt,
-                task="tagging",
+                task="tagging",  # Can use cheaper model for classification
                 api_key=api_key,
-                max_tokens=500,
+                max_tokens=600,
             )
-
-            # Parse JSON array from response
-            parsed = _parse_tags(response, batch)
+            parsed = _parse_classifications(response, batch)
 
             for i, text in enumerate(batch):
-                tag_info = parsed.get(i + 1, {})
+                info = parsed.get(i + 1, {})
                 results.append({
                     "text": text,
-                    "tag": tag_info.get("tag", "other"),
-                    "confidence": tag_info.get("confidence", "low"),
-                    "rationale": tag_info.get("rationale", ""),
-                    "human_override": "",  # empty until human reviews
-                })
-
-        except Exception as e:
-            log.warning("Tagging batch %d failed: %s", batch_idx, e)
-            # Fall back to "other" for failed batch
-            for text in batch:
-                results.append({
-                    "text": text,
-                    "tag": "other",
-                    "confidence": "low",
-                    "rationale": f"Tagging failed: {e}",
+                    "cluster_id": info.get("cluster_id", taxonomy[0]["id"] if taxonomy else "unknown"),
+                    "confidence": info.get("confidence", "low"),
                     "human_override": "",
                 })
 
-    log.info("Tagged %d responses in %d batches", total, n_batches)
+        except Exception as e:
+            log.warning("Classification batch %d failed: %s", batch_idx, e)
+            for text in batch:
+                results.append({
+                    "text": text,
+                    "cluster_id": "unclassified",
+                    "confidence": "low",
+                    "human_override": "",
+                })
+
     return results
 
 
-def _parse_tags(response: str, batch: List[str]) -> Dict[int, Dict]:
-    """Parse JSON array from LLM response into {id: {tag, confidence, rationale}}."""
+def _parse_taxonomy(response: str) -> List[Dict]:
+    """Parse taxonomy JSON from LLM response."""
+    m = re.search(r'\[.*\]', response, re.DOTALL)
+    if not m:
+        return []
+    try:
+        parsed = json.loads(m.group())
+        result = []
+        for item in parsed:
+            if isinstance(item, dict) and item.get("title"):
+                result.append({
+                    "id": item.get("id", f"cluster_{len(result) + 1}"),
+                    "title": item.get("title", ""),
+                    "description": item.get("description", ""),
+                })
+        return result
+    except json.JSONDecodeError:
+        return []
+
+
+def _parse_classifications(response: str, batch: List[str]) -> Dict[int, Dict]:
+    """Parse classification JSON into {response_id: {cluster_id, confidence}}."""
     m = re.search(r'\[.*\]', response, re.DOTALL)
     if not m:
         return {}
@@ -111,14 +203,9 @@ def _parse_tags(response: str, batch: List[str]) -> Dict[int, Dict]:
         result = {}
         for item in parsed:
             if isinstance(item, dict):
-                idx = item.get("id", 0)
-                tag = item.get("tag", "other")
-                if tag not in FREE_TEXT_TAGS:
-                    tag = "other"
-                result[idx] = {
-                    "tag": tag,
+                result[item.get("response_id", 0)] = {
+                    "cluster_id": item.get("cluster_id", ""),
                     "confidence": item.get("confidence", "low"),
-                    "rationale": item.get("rationale", ""),
                 }
         return result
     except json.JSONDecodeError:
