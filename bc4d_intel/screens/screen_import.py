@@ -85,9 +85,9 @@ class ImportScreen(ctk.CTkFrame):
                 child.grid(row=0, column=i, sticky="ew", padx=5, pady=5)
 
         self._status_lbl = ctk.CTkLabel(
-            status_card, text="Load both survey files to begin analysis.",
-            font=ctk.CTkFont(family="Segoe UI", size=11),
-            text_color=C.MUTED, anchor="w")
+            status_card, text="\u2191 Start by clicking 'Choose File' on both cards above.",
+            font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
+            text_color=C.ACCENT, anchor="w")
         self._status_lbl.pack(fill="x", padx=12, pady=8)
 
         # Column role preview (scrollable, below file cards)
@@ -98,9 +98,21 @@ class ImportScreen(ctk.CTkFrame):
                                                        corner_radius=10)
         self._preview_scroll.pack(fill="both", expand=True)
 
-        W.muted_label(self._preview_scroll,
-                       "Column roles will appear here after loading files.",
-                       size=11).pack(padx=20, pady=30)
+        from bc4d_intel.ui.guide import info_banner
+        info_banner(self._preview_scroll,
+            "Getting started",
+            "1. Click 'Choose File' above to load the Pre-Survey (Vorabfragebogen)\n"
+            "2. Click 'Choose File' to load the Post-Survey (Abschlussbefragung)\n"
+            "3. The system auto-detects column types (Likert scales, free text, demographics)\n"
+            "4. It then matches respondents between surveys using pseudonymisation keys\n\n"
+            "After both files are loaded, you'll see:\n"
+            "  - Column roles (editable — click the dropdown to change if needed)\n"
+            "  - Matching results (how many respondents completed both surveys)\n"
+            "  - A 'Continue to Dashboard' button\n\n"
+            "You need: two Excel files (.xlsx) from the same Staffel.\n"
+            "The Pre-Survey is typically larger (all who started) and the Post-Survey smaller (completers).",
+            icon="\U0001F4C2",
+        ).pack(fill="x", padx=8, pady=12)
 
     def _choose_file(self, survey_type):
         from tkinter import filedialog

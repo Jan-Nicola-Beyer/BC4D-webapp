@@ -81,10 +81,18 @@ class ValidationScreen(ctk.CTkFrame):
 
         info_banner(self._left_scroll,
             "How it works",
-            "1. Click 'Analyze Free Text' — AI discovers themes in your responses\n"
-            "2. Review the clusters — rename titles, merge similar ones\n"
-            "3. Check individual responses — reassign if AI got it wrong\n"
-            "4. Distribution charts update live as you validate\n\n"
+            "1. Click 'Analyze Free Text' — AI reads ALL responses and discovers "
+            "thematic clusters (groups of similar answers)\n"
+            "2. Review the clusters on the left — click a title to rename it\n"
+            "3. Check individual responses in the center — use the dropdown to "
+            "move a response to a different cluster if the AI got it wrong\n"
+            "4. The chart on the right updates live as you validate\n\n"
+            "Confidence levels (shown as HIG / MED / LOW):\n"
+            "  HIG = AI is confident this response clearly belongs to one cluster\n"
+            "  MED = Response could fit 2 clusters, AI picked the more likely one\n"
+            "  LOW = Response is ambiguous or very short — needs your review\n\n"
+            "Tip: Use 'Accept All High' to quickly validate confident assignments, "
+            "then filter by 'Low confidence' to focus your review.\n\n"
             "Cost: ~$0.50 | Time: 2-5 minutes",
             icon="\U0001F50D",
         ).pack(fill="x", padx=4, pady=4)
