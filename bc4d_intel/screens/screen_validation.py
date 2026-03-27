@@ -30,8 +30,10 @@ class ValidationScreen(ctk.CTkFrame):
         super().__init__(master, fg_color=C.BG, corner_radius=0)
         self.app = app
         self._questions = {}       # {label: [response_texts]}
-        self._taxonomies = {}      # {label: [{id, title, description}]}
+        self._taxonomies = {}      # {label: {categories: [hierarchical]}}
+        self._flat_taxonomies = {} # {label: [{id, title, main_category, count}]}
         self._classifications = {} # {label: [{text, cluster_id, confidence, human_override}]}
+        self._umap_data = {}       # {label: {coords, labels}}
         self._current_question = None
         self._build()
 
@@ -185,6 +187,7 @@ class ValidationScreen(ctk.CTkFrame):
             result = self.app._match_result
             questions = {}
             taxonomies = {}
+            flat_taxonomies = {}
             classifications = {}
             umap_data = {}
 
@@ -216,14 +219,17 @@ class ValidationScreen(ctk.CTkFrame):
                     self.after(0, lambda m=msg: self._progress["detail_label"].configure(text=m))
 
                 try:
-                    result_q = full_pipeline(responses, api_key, progress_cb=on_progress)
+                    result_q = full_pipeline(responses, api_key,
+                                             question=label, progress_cb=on_progress)
                     taxonomies[label] = result_q["taxonomy"]
                     classifications[label] = result_q["classifications"]
                     questions[label] = responses
-                    umap_data[label] = {
-                        "coords": result_q["umap_coords"],
-                        "labels": result_q["labels"],
-                    }
+                    flat_taxonomies[label] = result_q["flat_taxonomy"]
+                    if result_q.get("umap_coords") is not None:
+                        umap_data[label] = {
+                            "coords": result_q["umap_coords"],
+                            "labels": result_q["labels"],
+                        }
                 except Exception as e:
                     self.after(0, lambda err=str(e): self._status_lbl.configure(
                         text=f"Error: {err}", text_color=C.DANGER))
@@ -231,6 +237,7 @@ class ValidationScreen(ctk.CTkFrame):
 
             self._questions = questions
             self._taxonomies = taxonomies
+            self._flat_taxonomies = flat_taxonomies
             self._classifications = classifications
             self._umap_data = umap_data
 
@@ -272,13 +279,14 @@ class ValidationScreen(ctk.CTkFrame):
 
         for label in self._taxonomies:
             taxonomy = self._taxonomies[label]
+            flat_tax = self._flat_taxonomies.get(label, [])
             classified = self._classifications.get(label, [])
             n = len(classified)
 
             # Question header
             q_btn = ctk.CTkButton(
                 self._left_scroll,
-                text=f"{label[:35]}\n{n} responses, {len(taxonomy)} clusters",
+                text=f"{label[:35]}\n{n} responses, {len(flat_tax)} categories",
                 anchor="w", height=45,
                 fg_color=C.PANEL, hover_color=C.SELECT,
                 text_color=C.TEXT,
@@ -286,30 +294,38 @@ class ValidationScreen(ctk.CTkFrame):
                 corner_radius=6,
                 command=lambda l=label: self._select_question(l),
             )
-            q_btn.pack(fill="x", padx=4, pady=2)
+            q_btn.pack(fill="x", padx=4, pady=3)
 
-            # Cluster list under this question
-            for ci, cluster in enumerate(taxonomy):
-                color = CLUSTER_COLORS[ci % len(CLUSTER_COLORS)]
-                count = sum(1 for c in classified
-                            if (c.get("human_override") or c["cluster_id"]) == cluster["id"])
+            # Hierarchical taxonomy display
+            for main_cat in taxonomy.get("categories", []):
+                # Main category header
+                ctk.CTkLabel(self._left_scroll,
+                    text=f"  {main_cat['main_category']}",
+                    font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
+                    text_color=C.TEXT, anchor="w",
+                ).pack(fill="x", padx=8, pady=(4, 0))
 
-                cluster_row = ctk.CTkFrame(self._left_scroll, fg_color="transparent")
-                cluster_row.pack(fill="x", padx=12, pady=1)
+                for si, sub in enumerate(main_cat.get("sub_categories", [])):
+                    color = CLUSTER_COLORS[si % len(CLUSTER_COLORS)]
+                    count = sum(1 for c in classified
+                                if (c.get("human_override") or c["cluster_id"]) == sub["id"])
 
-                W.status_badge(cluster_row, f"{count}", color).pack(side="left", padx=(0, 4))
+                    cluster_row = ctk.CTkFrame(self._left_scroll, fg_color="transparent")
+                    cluster_row.pack(fill="x", padx=16, pady=1)
 
-                # Editable cluster title
-                title_entry = ctk.CTkEntry(
-                    cluster_row, height=22, width=160,
-                    font=ctk.CTkFont(family="Segoe UI", size=9),
-                    fg_color=C.ENTRY_BG, border_color=C.ENTRY_BORDER,
-                )
-                title_entry.insert(0, cluster["title"])
-                title_entry.pack(side="left", fill="x", expand=True)
-                title_entry.bind("<Return>",
-                    lambda e, l=label, cid=cluster["id"], entry=title_entry:
-                        self._rename_cluster(l, cid, entry.get()))
+                    W.status_badge(cluster_row, f"{count}", color).pack(side="left", padx=(0, 4))
+
+                    # Editable sub-category title
+                    title_entry = ctk.CTkEntry(
+                        cluster_row, height=22,
+                        font=ctk.CTkFont(family="Segoe UI", size=9),
+                        fg_color=C.ENTRY_BG, border_color=C.ENTRY_BORDER,
+                    )
+                    title_entry.insert(0, sub["title"])
+                    title_entry.pack(side="left", fill="x", expand=True)
+                    title_entry.bind("<Return>",
+                        lambda e, l=label, sid=sub["id"], entry=title_entry:
+                            self._rename_cluster(l, sid, entry.get()))
 
     def _rename_cluster(self, question_label, cluster_id, new_title):
         """Rename a cluster title."""
@@ -334,7 +350,7 @@ class ValidationScreen(ctk.CTkFrame):
 
         label = self._current_question
         classified = self._classifications.get(label, [])
-        taxonomy = self._taxonomies.get(label, [])
+        taxonomy = self._flat_taxonomies.get(label, [])
 
         for w in self._response_scroll.winfo_children():
             w.destroy()
@@ -438,10 +454,10 @@ class ValidationScreen(ctk.CTkFrame):
         if not self._current_question:
             return
 
-        taxonomy = self._taxonomies.get(self._current_question, [])
+        flat_tax = self._flat_taxonomies.get(self._current_question, [])
         classified = self._classifications.get(self._current_question, [])
 
-        if not taxonomy or not classified:
+        if not flat_tax or not classified:
             return
 
         # Count per cluster
@@ -466,9 +482,8 @@ class ValidationScreen(ctk.CTkFrame):
                 fig, ax = plt.subplots(figsize=(4, 3.5))
                 _apply_style(fig, ax)
 
-                for ci, cluster in enumerate(taxonomy):
-                    cid_num = ci if cluster["id"] != "noise" else -1
-                    mask = labels == cid_num
+                for ci, cluster in enumerate(flat_tax):
+                    mask = labels == ci
                     if mask.any():
                         color = CLUSTER_COLORS[ci % len(CLUSTER_COLORS)]
                         ax.scatter(coords[mask, 0], coords[mask, 1],
@@ -493,7 +508,7 @@ class ValidationScreen(ctk.CTkFrame):
                      font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
                      text_color=C.TEXT).pack(anchor="w", padx=4, pady=(8, 4))
 
-        for ci, cluster in enumerate(taxonomy):
+        for ci, cluster in enumerate(flat_tax):
             color = CLUSTER_COLORS[ci % len(CLUSTER_COLORS)]
             count = counts.get(cluster["id"], 0)
             pct = round(count / max(total, 1) * 100, 1)
