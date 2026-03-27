@@ -91,8 +91,10 @@ LIKERT_COLORS = {
 
 # ── AI model config ──────────────────────────────────────────────
 AI_MODELS = {
-    "tagging": "claude-haiku-4-5-20251001",   # bulk free-text tagging
+    "tagging": "claude-sonnet-4-6",            # free-text tagging (needs German + nuance)
     "report":  "claude-sonnet-4-6",            # report section writing
+    # Both use Sonnet. Haiku was too weak for nuanced German classification.
+    # Cost difference: $0.37/staffel ($0.82 vs $0.46). Worth it for quality.
 }
 
 # ── Session / paths ──────────────────────────────────────────────
