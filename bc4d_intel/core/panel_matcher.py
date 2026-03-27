@@ -89,10 +89,27 @@ def match_panels(
     pre_invalid = len(pre_df) - len(pre_valid)
     post_invalid = len(post_df) - len(post_valid)
 
-    # Find matches
+    # Find exact matches
     pre_keys = set(pre_valid["_pseudokey"])
     post_keys = set(post_valid["_pseudokey"])
     matched_keys = pre_keys & post_keys
+
+    # Fuzzy matching: recover near-matches (edit distance 1-2)
+    # e.g., "KARL05" vs "KARF05" (typo in street)
+    fuzzy_recovered = 0
+    unmatched_post_keys = post_keys - pre_keys
+    unmatched_pre_keys = pre_keys - post_keys
+    if unmatched_post_keys and unmatched_pre_keys:
+        from difflib import get_close_matches
+        pre_key_list = list(unmatched_pre_keys)
+        for pk in list(unmatched_post_keys):
+            close = get_close_matches(pk, pre_key_list, n=1, cutoff=0.8)
+            if close:
+                # Remap post key to matching pre key
+                post_valid.loc[post_valid["_pseudokey"] == pk, "_pseudokey"] = close[0]
+                matched_keys.add(close[0])
+                fuzzy_recovered += 1
+                pre_key_list.remove(close[0])
 
     # Handle duplicates: if a key appears multiple times, take the first occurrence
     pre_dedup = pre_valid.drop_duplicates(subset="_pseudokey", keep="first")
@@ -119,6 +136,7 @@ def match_panels(
         "n_post_invalid_keys": post_invalid,
         "n_pre_duplicates": pre_dupes,
         "n_post_duplicates": post_dupes,
+        "n_fuzzy_recovered": fuzzy_recovered,
         "n_matched": len(matched_df),
         "n_pre_only": len(pre_keys - post_keys),
         "n_post_only": len(post_keys - pre_keys),

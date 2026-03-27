@@ -81,7 +81,38 @@ class ValidationScreen(ctk.CTkFrame):
         self._response_header = ctk.CTkLabel(right, text="Responses",
             font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
             text_color=C.TEXT)
-        self._response_header.pack(anchor="w", padx=12, pady=(10, 4))
+        self._response_header.pack(anchor="w", padx=12, pady=(10, 2))
+
+        # Filter bar
+        filter_bar = ctk.CTkFrame(right, fg_color="transparent")
+        filter_bar.pack(fill="x", padx=12, pady=(0, 4))
+
+        ctk.CTkLabel(filter_bar, text="Filter:",
+                     font=ctk.CTkFont(family="Segoe UI", size=10),
+                     text_color=C.MUTED).pack(side="left", padx=(0, 4))
+
+        self._conf_filter = ctk.StringVar(value="All")
+        for label, val in [("All", "All"), ("Low confidence", "low"),
+                           ("Medium", "medium"), ("Flagged", "flagged")]:
+            ctk.CTkRadioButton(
+                filter_bar, text=label, variable=self._conf_filter, value=val,
+                font=ctk.CTkFont(family="Segoe UI", size=9),
+                text_color=C.MUTED, height=20,
+                command=self._apply_filter,
+            ).pack(side="left", padx=4)
+
+        # Batch buttons
+        batch_bar = ctk.CTkFrame(right, fg_color="transparent")
+        batch_bar.pack(fill="x", padx=12, pady=(0, 4))
+
+        ctk.CTkButton(batch_bar, text="Accept All High-Confidence", width=180, height=24,
+                       fg_color=C.SUCCESS, hover_color="#047857",
+                       font=ctk.CTkFont(size=9), corner_radius=3,
+                       command=self._batch_accept_high).pack(side="left", padx=(0, 6))
+
+        self._progress_lbl = ctk.CTkLabel(batch_bar, text="",
+            font=ctk.CTkFont(family="Consolas", size=9), text_color=C.MUTED)
+        self._progress_lbl.pack(side="right")
 
         self._response_frame = ctk.CTkScrollableFrame(right, fg_color="transparent")
         self._response_frame.pack(fill="both", expand=True, padx=6, pady=6)
@@ -187,9 +218,22 @@ class ValidationScreen(ctk.CTkFrame):
         for w in self._response_frame.winfo_children():
             w.destroy()
 
-        self._response_header.configure(text=f"{question_label[:55]} ({len(tags)} responses)")
+        # Apply confidence filter
+        conf_filter = self._conf_filter.get()
+        if conf_filter == "low":
+            visible = [(i, t) for i, t in enumerate(tags) if t["confidence"] == "low"]
+        elif conf_filter == "medium":
+            visible = [(i, t) for i, t in enumerate(tags) if t["confidence"] in ("low", "medium")]
+        elif conf_filter == "flagged":
+            visible = [(i, t) for i, t in enumerate(tags) if t.get("human_override") == "flagged"]
+        else:
+            visible = list(enumerate(tags))
 
-        for i, item in enumerate(tags):
+        n_reviewed = sum(1 for t in tags if t.get("human_override") not in ("", None) or t["confidence"] == "high")
+        self._response_header.configure(text=f"{question_label[:45]} ({len(visible)}/{len(tags)} shown)")
+        self._progress_lbl.configure(text=f"{n_reviewed}/{len(tags)} reviewed")
+
+        for i, item in visible:
             card = ctk.CTkFrame(self._response_frame, fg_color=C.PANEL, corner_radius=6)
             card.pack(fill="x", padx=4, pady=3)
 
@@ -251,6 +295,24 @@ class ValidationScreen(ctk.CTkFrame):
                           font=ctk.CTkFont(size=9), corner_radius=3,
                           command=lambda idx=i: self._flag_tag(idx),
                           ).pack(side="left")
+
+    def _apply_filter(self):
+        """Re-render responses with current filter applied."""
+        if self._current_question:
+            self._show_responses(self._current_question)
+
+    def _batch_accept_high(self):
+        """Accept all high-confidence tags in current question."""
+        if not self._current_question or self._current_question not in self._tagged_data:
+            return
+        tags = self._tagged_data[self._current_question]
+        accepted = 0
+        for t in tags:
+            if t["confidence"] == "high" and not t.get("human_override"):
+                t["human_override"] = ""  # explicitly accepted (no change)
+                accepted += 1
+        self._progress_lbl.configure(text=f"Accepted {accepted} high-confidence tags")
+        self._show_responses(self._current_question)
 
     def _accept_tag(self, idx):
         """Accept AI tag as correct."""

@@ -154,13 +154,9 @@ class ReportScreen(ctk.CTkFrame):
         self._editor.insert("1.0", "Generating...\n")
 
         def work():
-            from bc4d_intel.ai.report_writer import generate_section, build_data_context
+            from bc4d_intel.ai.report_writer import generate_section
 
-            match_result = getattr(self.app, "_match_result", None)
-            validation_screen = self.app._frames.get("validation")
-            tagged_data = validation_screen._tagged_data if validation_screen else None
-
-            context = build_data_context(self.app.app_state, match_result, tagged_data)
+            context = self._build_context()
 
             def on_stream(chunk):
                 self.after(0, lambda c=chunk: self._append_text(c))
@@ -198,10 +194,7 @@ class ReportScreen(ctk.CTkFrame):
         def work():
             from bc4d_intel.ai.report_writer import generate_section, build_data_context
 
-            match_result = getattr(self.app, "_match_result", None)
-            validation_screen = self.app._frames.get("validation")
-            tagged_data = validation_screen._tagged_data if validation_screen else None
-            context = build_data_context(self.app.app_state, match_result, tagged_data)
+            context = self._build_context()
 
             for i, (section, label) in enumerate(SECTION_LABELS.items()):
                 self.after(0, lambda l=label, n=i+1: self._status_lbl.configure(
@@ -222,6 +215,25 @@ class ReportScreen(ctk.CTkFrame):
 
         threading.Thread(target=work, daemon=True).start()
 
+    def _build_context(self) -> str:
+        """Build rich data context with actual statistics for Sonnet."""
+        from bc4d_intel.ai.report_writer import build_data_context
+        match_result = getattr(self.app, "_match_result", None)
+        validation_screen = self.app._frames.get("validation")
+        tagged_data = validation_screen._tagged_data if validation_screen else None
+        import_screen = self.app._frames.get("import")
+
+        pre_roles = import_screen._pre_roles if import_screen else None
+        post_roles = import_screen._post_roles if import_screen else None
+        pre_df = import_screen._pre_df if import_screen else None
+        post_df = import_screen._post_df if import_screen else None
+
+        return build_data_context(
+            self.app.app_state, match_result, tagged_data,
+            pre_roles=pre_roles, post_roles=post_roles,
+            pre_df=pre_df, post_df=post_df,
+        )
+
     def _export_docx(self):
         """Export all sections to a DOCX file."""
         from tkinter import filedialog
@@ -236,16 +248,55 @@ class ReportScreen(ctk.CTkFrame):
 
         try:
             from docx import Document
+            from docx.shared import Pt, Inches
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+
             doc = Document()
-            doc.add_heading("BC4D Evaluation Report — Staffel 13", level=0)
+
+            # Title page
+            staffel = self.app.app_state.staffel_name or "13"
+            title = doc.add_heading(f"Evaluierungsbericht BC4D Staffel {staffel}", level=0)
+            title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+            meta = doc.add_paragraph()
+            meta.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            meta.add_run("ISD Deutschland\n").bold = True
+            meta.add_run(f"Erstellt mit BC4D Intel\n")
+            import datetime
+            meta.add_run(f"{datetime.date.today().strftime('%d.%m.%Y')}")
+
+            doc.add_page_break()
 
             for section, label in SECTION_LABELS.items():
                 text = self._sections.get(section, "")
-                if text:
-                    doc.add_heading(label, level=1)
-                    for para in text.split("\n"):
-                        if para.strip():
-                            doc.add_paragraph(para.strip())
+                if not text:
+                    continue
+
+                doc.add_heading(label, level=1)
+
+                for para_text in text.split("\n"):
+                    stripped = para_text.strip()
+                    if not stripped:
+                        continue
+
+                    # Detect markdown-style headings
+                    if stripped.startswith("### "):
+                        doc.add_heading(stripped[4:], level=3)
+                    elif stripped.startswith("## "):
+                        doc.add_heading(stripped[3:], level=2)
+                    elif stripped.startswith("- ") or stripped.startswith("* "):
+                        p = doc.add_paragraph(stripped[2:], style="List Bullet")
+                    elif stripped.startswith("1. ") or stripped.startswith("2. ") or stripped.startswith("3. "):
+                        p = doc.add_paragraph(stripped[3:], style="List Number")
+                    else:
+                        # Handle bold markers
+                        p = doc.add_paragraph()
+                        parts = stripped.split("**")
+                        for i, part in enumerate(parts):
+                            if part:
+                                run = p.add_run(part)
+                                if i % 2 == 1:  # odd parts are bold
+                                    run.bold = True
 
             doc.save(path)
             self._status_lbl.configure(

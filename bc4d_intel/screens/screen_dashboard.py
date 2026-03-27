@@ -119,7 +119,7 @@ class DashboardScreen(ctk.CTkFrame):
 
     def _render_post_charts(self, result):
         """Charts for post-survey (all respondents)."""
-        from bc4d_intel.core.stats_engine import analyze_all_likert
+        from bc4d_intel.core.stats_engine import analyze_all_likert, practical_transfer_stats
 
         post_df = result["post_all"]
         import_screen = self.app._frames.get("import")
@@ -128,6 +128,27 @@ class DashboardScreen(ctk.CTkFrame):
             return
 
         roles = import_screen._post_roles
+        stats = result.get("stats", {})
+
+        # Summary metrics panel (#8)
+        metrics_card = W.make_card(self._chart_frame)
+        metrics_card.pack(fill="x", padx=5, pady=8)
+        metrics_row = ctk.CTkFrame(metrics_card, fg_color="transparent")
+        metrics_row.pack(fill="x", padx=16, pady=12)
+
+        for value, label, color in [
+            (str(stats.get("n_post_total", len(post_df))), "Respondents", C.TEXT),
+            (str(stats.get("n_matched", "?")), "Matched Pairs", C.BC4D_TEAL),
+            (f"{stats.get('match_rate_post', '?')}%", "Match Rate", C.BC4D_BLUE),
+        ]:
+            metric_frame = ctk.CTkFrame(metrics_row, fg_color="transparent")
+            metric_frame.pack(side="left", expand=True)
+            ctk.CTkLabel(metric_frame, text=value,
+                         font=ctk.CTkFont(family="Segoe UI", size=28, weight="bold"),
+                         text_color=color).pack()
+            ctk.CTkLabel(metric_frame, text=label,
+                         font=ctk.CTkFont(family="Segoe UI", size=10),
+                         text_color=C.MUTED).pack()
 
         ctk.CTkLabel(self._chart_frame,
             text=f"Post-Survey Analysis — {len(post_df)} respondents (outcomes)",
@@ -137,6 +158,11 @@ class DashboardScreen(ctk.CTkFrame):
         items = analyze_all_likert(post_df, roles)
         if items:
             self._embed_chart("likert_post", items, "Post-Survey: Competence & Confidence Scales")
+
+        # Practical transfer chart (#5)
+        transfer = practical_transfer_stats(post_df, roles)
+        if transfer:
+            self._embed_transfer_chart(transfer, "Practical Transfer: Skills Applied")
 
     def _render_matched_charts(self, result):
         """Charts for matched panel (paired respondents)."""
@@ -187,6 +213,36 @@ class DashboardScreen(ctk.CTkFrame):
     def _embed_change_chart(self, comparisons, title):
         from bc4d_intel.core.chart_builder import change_histogram
         fig = change_histogram(comparisons, title)
+        self._embed_figure(fig)
+
+    def _embed_transfer_chart(self, transfer_data, title):
+        """Embed practical transfer horizontal bar chart."""
+        from bc4d_intel.core.chart_builder import _ensure_mpl, _apply_style
+        _ensure_mpl()
+        import matplotlib.pyplot as plt
+        import numpy as np
+
+        n = len(transfer_data)
+        fig, ax = plt.subplots(figsize=(10, max(3, n * 0.6 + 1)))
+        _apply_style(fig, ax)
+
+        labels = [t["label"][:45] for t in transfer_data]
+        pcts = [t["pct_applied"] for t in transfer_data]
+        y = np.arange(n)
+
+        bars = ax.barh(y, pcts, height=0.5, color=C.BC4D_TEAL, edgecolor="#0d1117")
+        ax.set_yticks(y)
+        ax.set_yticklabels(labels, fontsize=10)
+        ax.set_xlabel("% Applied (manchmal + regelmaessig)", fontsize=11)
+        ax.set_xlim(0, 105)
+        ax.set_title(title, fontsize=14, fontweight="bold", pad=12)
+        ax.invert_yaxis()
+
+        for i, (pct, t) in enumerate(zip(pcts, transfer_data)):
+            ax.text(pct + 1, i, f"{pct}% (n={t['n']})", va="center",
+                    fontsize=10, color="#e6edf3")
+
+        fig.tight_layout()
         self._embed_figure(fig)
 
     def _embed_demographic(self, series, title):

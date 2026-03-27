@@ -282,6 +282,10 @@ class ImportScreen(ctk.CTkFrame):
         from collections import Counter
         role_counts = Counter(roles.values())
 
+        role_options = ["likert", "frequency", "relevance", "free_text",
+                       "demographic", "categorical", "pseudokey_street",
+                       "pseudokey_birthday", "metadata", "ignore"]
+
         for col, role in roles.items():
             if role == "ignore":
                 continue
@@ -289,12 +293,19 @@ class ImportScreen(ctk.CTkFrame):
             row = ctk.CTkFrame(self._preview_scroll, fg_color=C.PANEL, corner_radius=4)
             row.pack(fill="x", padx=8, pady=1)
 
-            color = ROLE_COLORS.get(role, C.MUTED)
+            # Editable role dropdown (Improvement #3)
+            role_var = ctk.StringVar(value=role)
+            dropdown = ctk.CTkOptionMenu(
+                row, variable=role_var, values=role_options,
+                font=ctk.CTkFont(family="Consolas", size=8),
+                fg_color=ROLE_COLORS.get(role, C.DIM),
+                button_color=C.MUTED,
+                width=100, height=22,
+                command=lambda v, c=col, st=survey_type, rv=role_var: self._change_role(st, c, v),
+            )
+            dropdown.pack(side="left", padx=(6, 8), pady=4)
 
-            W.status_badge(row, role.replace("_", " ").upper()[:12], color).pack(
-                side="left", padx=(6, 8), pady=4)
-
-            col_display = col[:65] if len(col) <= 65 else col[:62] + "..."
+            col_display = col[:55] if len(col) <= 55 else col[:52] + "..."
             ctk.CTkLabel(row, text=col_display,
                          font=ctk.CTkFont(family="Segoe UI", size=10),
                          text_color=C.TEXT, anchor="w").pack(side="left", fill="x", expand=True)
@@ -302,7 +313,7 @@ class ImportScreen(ctk.CTkFrame):
             # Sample value
             sample = df[col].dropna().head(1)
             if len(sample) > 0:
-                val = str(sample.iloc[0])[:30]
+                val = str(sample.iloc[0])[:25]
                 ctk.CTkLabel(row, text=val,
                              font=ctk.CTkFont(family="Consolas", size=9),
                              text_color=C.MUTED).pack(side="right", padx=6)
@@ -314,6 +325,16 @@ class ImportScreen(ctk.CTkFrame):
                   f"{role_counts.get('demographic', 0)} demographic"
         W.muted_label(self._preview_scroll, summary, size=10).pack(
             anchor="w", padx=12, pady=(8, 12))
+
+    def _change_role(self, survey_type, col, new_role):
+        """Handle manual column role override."""
+        if survey_type == "pre":
+            self._pre_roles[col] = new_role
+        else:
+            self._post_roles[col] = new_role
+        # Re-run matching if both loaded
+        if self._pre_df is not None and self._post_df is not None:
+            self._show_next_step()
 
     def refresh(self):
         pass

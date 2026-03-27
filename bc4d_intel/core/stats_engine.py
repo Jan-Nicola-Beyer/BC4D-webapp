@@ -5,6 +5,8 @@ Handles three analysis levels:
   1. Pre-all (baseline): descriptive stats for all pre-survey respondents
   2. Post-all (outcomes): descriptive stats for all post-survey respondents
   3. Matched panel: paired comparisons, individual-level change, effect sizes
+
+Improvement #4: Added Cronbach's alpha, confidence intervals, Bonferroni correction.
 """
 
 from __future__ import annotations
@@ -21,19 +23,37 @@ def descriptive_stats(series: pd.Series) -> Dict:
     """Compute descriptive statistics for a numeric Likert series."""
     clean = pd.to_numeric(series, errors="coerce").dropna()
     if len(clean) == 0:
-        return {"n": 0, "mean": None, "sd": None, "median": None, "distribution": {}}
+        return {"n": 0, "mean": None, "sd": None, "median": None,
+                "ci_lower": None, "ci_upper": None, "distribution": {},
+                "pct_agree": None, "pct_disagree": None}
 
-    dist = {}
-    for v in range(1, 6):
-        count = int((clean == v).sum())
-        dist[v] = count
+    n = int(len(clean))
+    mean = float(clean.mean())
+    sd = float(clean.std())
+
+    # 95% confidence interval for the mean
+    from scipy.stats import t as t_dist
+    se = sd / np.sqrt(n) if n > 1 else 0
+    ci_margin = t_dist.ppf(0.975, n - 1) * se if n > 1 else 0
+    ci_lower = round(mean - ci_margin, 2)
+    ci_upper = round(mean + ci_margin, 2)
+
+    dist = {v: int((clean == v).sum()) for v in range(1, 6)}
+
+    # Percentage who agree (4-5) vs disagree (1-2)
+    pct_agree = round((dist.get(4, 0) + dist.get(5, 0)) / n * 100, 1)
+    pct_disagree = round((dist.get(1, 0) + dist.get(2, 0)) / n * 100, 1)
 
     return {
-        "n": int(len(clean)),
-        "mean": round(float(clean.mean()), 2),
-        "sd": round(float(clean.std()), 2),
+        "n": n,
+        "mean": round(mean, 2),
+        "sd": round(sd, 2),
         "median": round(float(clean.median()), 1),
+        "ci_lower": ci_lower,
+        "ci_upper": ci_upper,
         "distribution": dist,
+        "pct_agree": pct_agree,
+        "pct_disagree": pct_disagree,
     }
 
 
@@ -49,23 +69,62 @@ def frequency_stats(series: pd.Series) -> Dict:
     }
 
 
-def paired_comparison(pre_series: pd.Series, post_series: pd.Series) -> Dict:
+def cronbachs_alpha(df: pd.DataFrame, columns: List[str]) -> Optional[float]:
+    """Compute Cronbach's alpha for internal consistency of a Likert scale.
+
+    Args:
+        df: DataFrame with numeric Likert columns
+        columns: list of column names to include
+
+    Returns alpha (0-1) or None if computation fails.
+    """
+    from bc4d_intel.core.data_loader import normalize_likert_column
+
+    items = pd.DataFrame()
+    for col in columns:
+        if col in df.columns:
+            items[col] = normalize_likert_column(df[col])
+
+    items = items.dropna()
+    n_items = len(items.columns)
+    if n_items < 2 or len(items) < 5:
+        return None
+
+    item_vars = items.var(axis=0, ddof=1)
+    total_var = items.sum(axis=1).var(ddof=1)
+
+    if total_var == 0:
+        return None
+
+    alpha = (n_items / (n_items - 1)) * (1 - item_vars.sum() / total_var)
+    return round(float(alpha), 3)
+
+
+def paired_comparison(pre_series: pd.Series, post_series: pd.Series,
+                      bonferroni_n: int = 1) -> Dict:
     """Paired comparison for matched panel data.
 
     Uses Wilcoxon signed-rank test (non-parametric, appropriate for Likert data).
-    Returns: mean change, effect size (Cohen's d), p-value, direction.
+    Supports Bonferroni correction via bonferroni_n (number of simultaneous tests).
     """
     pre = pd.to_numeric(pre_series, errors="coerce")
     post = pd.to_numeric(post_series, errors="coerce")
 
-    # Align on index and drop pairs with missing values
     combined = pd.DataFrame({"pre": pre, "post": post}).dropna()
     if len(combined) < 5:
         return {"n_pairs": len(combined), "error": "Too few pairs (<5)"}
 
     diff = combined["post"] - combined["pre"]
+    n = len(combined)
     mean_change = float(diff.mean())
-    sd_change = float(diff.std()) if len(diff) > 1 else 0
+    sd_change = float(diff.std()) if n > 1 else 0
+
+    # 95% CI for mean change
+    from scipy.stats import t as t_dist
+    se = sd_change / np.sqrt(n) if n > 1 else 0
+    ci_margin = t_dist.ppf(0.975, n - 1) * se if n > 1 else 0
+    ci_lower = round(mean_change - ci_margin, 2)
+    ci_upper = round(mean_change + ci_margin, 2)
 
     # Cohen's d (paired)
     pooled_sd = float(np.sqrt((combined["pre"].var() + combined["post"].var()) / 2))
@@ -75,7 +134,6 @@ def paired_comparison(pre_series: pd.Series, post_series: pd.Series) -> Dict:
     p_value = None
     try:
         from scipy.stats import wilcoxon
-        # Only test if there are non-zero differences
         non_zero = diff[diff != 0]
         if len(non_zero) >= 5:
             stat, p_value = wilcoxon(non_zero)
@@ -83,7 +141,12 @@ def paired_comparison(pre_series: pd.Series, post_series: pd.Series) -> Dict:
     except Exception:
         pass
 
-    # Direction
+    # Bonferroni correction
+    p_corrected = round(p_value * bonferroni_n, 4) if p_value is not None else None
+    if p_corrected is not None:
+        p_corrected = min(p_corrected, 1.0)
+
+    # Direction & effect size
     if mean_change > 0.1:
         direction = "improvement"
     elif mean_change < -0.1:
@@ -91,7 +154,6 @@ def paired_comparison(pre_series: pd.Series, post_series: pd.Series) -> Dict:
     else:
         direction = "stable"
 
-    # Effect size interpretation
     if abs(cohens_d) >= 0.8:
         effect_label = "large"
     elif abs(cohens_d) >= 0.5:
@@ -102,46 +164,66 @@ def paired_comparison(pre_series: pd.Series, post_series: pd.Series) -> Dict:
         effect_label = "negligible"
 
     return {
-        "n_pairs": int(len(combined)),
+        "n_pairs": int(n),
         "pre_mean": round(float(combined["pre"].mean()), 2),
         "post_mean": round(float(combined["post"].mean()), 2),
         "mean_change": round(mean_change, 2),
         "sd_change": round(sd_change, 2),
+        "ci_lower": ci_lower,
+        "ci_upper": ci_upper,
         "cohens_d": round(cohens_d, 2),
         "effect_label": effect_label,
         "p_value": p_value,
-        "significant": p_value < 0.05 if p_value is not None else None,
+        "p_corrected": p_corrected,
+        "significant": p_corrected < 0.05 if p_corrected is not None else None,
         "direction": direction,
-        "improved_pct": round(float((diff > 0).sum() / len(diff) * 100), 1),
-        "declined_pct": round(float((diff < 0).sum() / len(diff) * 100), 1),
-        "unchanged_pct": round(float((diff == 0).sum() / len(diff) * 100), 1),
+        "improved_pct": round(float((diff > 0).sum() / n * 100), 1),
+        "declined_pct": round(float((diff < 0).sum() / n * 100), 1),
+        "unchanged_pct": round(float((diff == 0).sum() / n * 100), 1),
     }
 
 
-def analyze_all_likert(
-    df: pd.DataFrame,
-    roles: Dict[str, str],
-    normalize_fn=None,
-) -> List[Dict]:
-    """Analyze all Likert columns in a DataFrame.
+def practical_transfer_stats(df: pd.DataFrame, roles: Dict[str, str]) -> List[Dict]:
+    """Aggregate frequency-scale items for practical transfer analysis.
 
-    Returns list of {column, label, stats} dicts.
+    Combines "manchmal" + "regelmäßig" as "applied" percentage.
     """
+    from bc4d_intel.core.data_loader import normalize_likert_column
+
+    results = []
+    freq_cols = [c for c, r in roles.items() if r == "frequency"]
+    for col in freq_cols:
+        series = normalize_likert_column(df[col])
+        clean = series.dropna()
+        n = len(clean)
+        if n == 0:
+            continue
+        # 3+ = "manchmal" or better = "applied"
+        n_applied = int((clean >= 3).sum())
+        pct_applied = round(n_applied / n * 100, 1)
+        label = col[:55] if len(col) <= 55 else col[:52] + "..."
+        results.append({
+            "column": col,
+            "label": label,
+            "n": n,
+            "n_applied": n_applied,
+            "pct_applied": pct_applied,
+            "mean": round(float(clean.mean()), 2),
+        })
+    return results
+
+
+def analyze_all_likert(df: pd.DataFrame, roles: Dict[str, str]) -> List[Dict]:
+    """Analyze all Likert columns in a DataFrame."""
     from bc4d_intel.core.data_loader import normalize_likert_column
 
     results = []
     for col, role in roles.items():
         if role in ("likert", "frequency", "relevance"):
-            series = normalize_likert_column(df[col]) if normalize_fn is None else normalize_fn(df[col])
+            series = normalize_likert_column(df[col])
             stats = descriptive_stats(series)
-            # Truncate column name for display
             label = col[:60] if len(col) <= 60 else col[:57] + "..."
-            results.append({
-                "column": col,
-                "label": label,
-                "role": role,
-                "stats": stats,
-            })
+            results.append({"column": col, "label": label, "role": role, "stats": stats})
     return results
 
 
@@ -152,8 +234,7 @@ def analyze_matched_likert(
 ) -> List[Dict]:
     """Find matching Likert columns between pre/post and run paired comparisons.
 
-    Matches columns by similar names (fuzzy) since pre/post may have
-    slightly different column names for the same construct.
+    Applies Bonferroni correction based on number of simultaneous tests.
     """
     from bc4d_intel.core.data_loader import normalize_likert_column
     from difflib import SequenceMatcher
@@ -161,44 +242,40 @@ def analyze_matched_likert(
     pre_likert = [c for c, r in pre_roles.items() if r in ("likert", "frequency", "relevance")]
     post_likert = [c for c, r in post_roles.items() if r in ("likert", "frequency", "relevance")]
 
-    results = []
+    # First pass: find all matches
+    matches = []
     used_post = set()
-
     for pre_col in pre_likert:
-        # Find best matching post column
-        best_match = None
-        best_ratio = 0
+        best_match, best_ratio = None, 0
         for post_col in post_likert:
             if post_col in used_post:
                 continue
-            # Compare column names (normalize whitespace)
             pre_norm = " ".join(pre_col.lower().split())
             post_norm = " ".join(post_col.lower().split())
             ratio = SequenceMatcher(None, pre_norm, post_norm).ratio()
             if ratio > best_ratio:
                 best_ratio = ratio
                 best_match = post_col
-
         if best_match and best_ratio > 0.6:
             used_post.add(best_match)
+            matches.append((pre_col, best_match, best_ratio))
 
-            # Get pre/post columns from merged DataFrame
-            pre_col_merged = pre_col + "_pre" if pre_col + "_pre" in matched_df.columns else pre_col
-            post_col_merged = best_match + "_post" if best_match + "_post" in matched_df.columns else best_match
+    # Second pass: run comparisons with Bonferroni correction
+    n_tests = len(matches)
+    results = []
+    for pre_col, post_col, ratio in matches:
+        pre_merged = pre_col + "_pre" if pre_col + "_pre" in matched_df.columns else pre_col
+        post_merged = post_col + "_post" if post_col + "_post" in matched_df.columns else post_col
 
-            if pre_col_merged in matched_df.columns and post_col_merged in matched_df.columns:
-                pre_series = normalize_likert_column(matched_df[pre_col_merged])
-                post_series = normalize_likert_column(matched_df[post_col_merged])
-
-                comparison = paired_comparison(pre_series, post_series)
-                label = pre_col[:55] if len(pre_col) <= 55 else pre_col[:52] + "..."
-
-                results.append({
-                    "pre_column": pre_col,
-                    "post_column": best_match,
-                    "label": label,
-                    "match_ratio": round(best_ratio, 2),
-                    "comparison": comparison,
-                })
+        if pre_merged in matched_df.columns and post_merged in matched_df.columns:
+            pre_series = normalize_likert_column(matched_df[pre_merged])
+            post_series = normalize_likert_column(matched_df[post_merged])
+            comparison = paired_comparison(pre_series, post_series, bonferroni_n=n_tests)
+            label = pre_col[:55] if len(pre_col) <= 55 else pre_col[:52] + "..."
+            results.append({
+                "pre_column": pre_col, "post_column": post_col,
+                "label": label, "match_ratio": round(ratio, 2),
+                "comparison": comparison,
+            })
 
     return results
