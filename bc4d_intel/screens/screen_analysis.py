@@ -142,6 +142,7 @@ class AnalysisScreen(ctk.CTkFrame):
 
             result = self.app._match_result
             all_results = {}
+            failed = []
 
             all_ft = []
             for survey_type, df_key, roles in [
@@ -170,21 +171,23 @@ class AnalysisScreen(ctk.CTkFrame):
                     res = full_pipeline(responses, api_key, question=col_name,
                                         progress_cb=on_progress)
                     all_results[label] = res
+
+                    # CHECKPOINT: save after each question so crash doesn't lose all work
+                    self.app.app_state.tagged_responses[label] = res["classifications"]
+                    self.app.app_state.taxonomies[label] = res.get("taxonomy", {})
+                    self.app.app_state.flat_taxonomies[label] = res.get("flat_taxonomy", [])
+                    self.app.app_state.save()
+
                 except Exception as e:
-                    self.after(0, lambda err=str(e): self._status_lbl.configure(
-                        text=f"Error: {err}", text_color=C.DANGER))
+                    failed.append(label)
+                    self.after(0, lambda err=str(e), l=label: self._status_lbl.configure(
+                        text=f"Error on {l[:20]}: {err}", text_color=C.DANGER))
 
             # Final progress update
             self.after(0, lambda: self._update_progress(1.0, "Complete!"))
 
-            # Store globally
+            # Store globally (includes all successful results)
             self.app._analysis_results = all_results
-
-            # Save classifications to app state
-            self.app.app_state.tagged_responses = {
-                k: v["classifications"] for k, v in all_results.items()
-            }
-            self.app.app_state.save()
 
             self.after(0, self._show_completion)
 

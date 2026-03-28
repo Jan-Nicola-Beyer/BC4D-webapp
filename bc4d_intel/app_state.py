@@ -45,7 +45,14 @@ class AppState:
 
     # ── AI tagging results ──
     tagged_responses: Dict[str, List[Dict]] = field(default_factory=dict)
-    # {question_col: [{text, tag, confidence, human_override}, ...]}
+    # {question_col: [{text, cluster_id, cluster_title, main_category, confidence, human_override}, ...]}
+
+    # ── Taxonomies (persisted for resume without re-running AI) ──
+    taxonomies: Dict[str, Dict] = field(default_factory=dict)
+    # {question_col: {categories: [{id, main_category, sub_categories: [...]}]}}
+
+    flat_taxonomies: Dict[str, List[Dict]] = field(default_factory=dict)
+    # {question_col: [{id, title, main_category, description, count}]}
 
     # ── Report sections ──
     report_sections: Dict[str, str] = field(default_factory=dict)
@@ -55,8 +62,11 @@ class AppState:
     api_key: str = ""
     theme: str = "dark"
 
+    # ── Crash log ──
+    last_error: str = ""
+
     def save(self, path: str = ""):
-        """Persist state to JSON file."""
+        """Persist state to JSON file. Returns True on success."""
         if not path:
             path = os.path.join(SESSION_DIR, "latest.bc4d")
         try:
@@ -64,8 +74,11 @@ class AppState:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2, default=str)
             log.info("Session saved to %s", path)
+            return True
         except Exception as e:
-            log.warning("Failed to save session: %s", e)
+            self.last_error = f"Save failed: {e}"
+            log.error("CRITICAL: Failed to save session: %s", e)
+            return False
 
     @classmethod
     def load(cls, path: str = "") -> "AppState":

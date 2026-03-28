@@ -1,7 +1,7 @@
 """BC4D Intel — main application shell (customtkinter)."""
 
 from __future__ import annotations
-import importlib, logging
+import importlib, logging, os
 import customtkinter as ctk
 
 from bc4d_intel import constants as C
@@ -30,8 +30,23 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
 
+        # Global crash handler
+        import sys
+        sys.excepthook = self._on_crash
+
         # Load saved state
         self.app_state = AppState.load()
+
+        # Reconstruct analysis results from persisted state (resume after restart)
+        if self.app_state.tagged_responses and self.app_state.taxonomies:
+            self._analysis_results = {}
+            for label in self.app_state.tagged_responses:
+                self._analysis_results[label] = {
+                    "taxonomy": self.app_state.taxonomies.get(label, {}),
+                    "flat_taxonomy": self.app_state.flat_taxonomies.get(label, []),
+                    "classifications": self.app_state.tagged_responses[label],
+                }
+            log.info("Restored %d analysis results from session", len(self._analysis_results))
 
         # Apply saved theme
         saved_theme = self.app_state.theme or "dark"
@@ -117,6 +132,29 @@ class App(ctk.CTk):
                 frame.rebuild()
             if hasattr(frame, "refresh"):
                 frame.refresh()
+
+    def _on_crash(self, exc_type, exc_value, exc_tb):
+        """Global crash handler — save state + write crash log."""
+        import traceback, datetime
+        tb_text = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+        log.error("CRASH: %s", tb_text[-500:])
+
+        self.app_state.last_error = f"{datetime.datetime.now()}: {exc_value}"
+        self.app_state.save()
+
+        crash_path = os.path.join(C.APP_DIR, "crash_log.txt")
+        try:
+            with open(crash_path, "a", encoding="utf-8") as f:
+                f.write(f"\n{'='*60}\n")
+                f.write(f"CRASH: {datetime.datetime.now()}\n")
+                f.write(tb_text)
+        except Exception:
+            pass
+
+        from tkinter import messagebox
+        messagebox.showerror("Error",
+            f"An unexpected error occurred:\n\n{exc_value}\n\n"
+            f"Your session has been saved.\nCrash details: {crash_path}")
 
     def _on_close(self):
         self.app_state.save()
