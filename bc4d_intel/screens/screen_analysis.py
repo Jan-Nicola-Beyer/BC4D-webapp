@@ -159,7 +159,7 @@ class AnalysisScreen(ctk.CTkFrame):
 
             total_q = len(all_ft)
             for qi, (label, col_name, responses) in enumerate(all_ft):
-                pct = qi / max(total_q, 1)
+                pct = (qi + 0.5) / max(total_q, 1)  # mid-question progress
                 self.after(0, lambda p=pct, l=label, n=len(responses):
                     self._update_progress(p, f"Analyzing: {l[:35]}... ({n} responses)"))
 
@@ -173,6 +173,9 @@ class AnalysisScreen(ctk.CTkFrame):
                 except Exception as e:
                     self.after(0, lambda err=str(e): self._status_lbl.configure(
                         text=f"Error: {err}", text_color=C.DANGER))
+
+            # Final progress update
+            self.after(0, lambda: self._update_progress(1.0, "Complete!"))
 
             # Store globally
             self.app._analysis_results = all_results

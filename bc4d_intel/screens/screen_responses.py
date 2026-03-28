@@ -84,6 +84,11 @@ class ResponsesScreen(ctk.CTkFrame):
         if results:
             labels = list(results.keys())
             self._question_menu.configure(values=labels)
+            # Auto-select first question if none selected
+            if labels and (self._question_var.get() == "Select a question..."
+                           or self._question_var.get() == "Run AI Analysis first"):
+                self._question_var.set(labels[0])
+                self._on_question_change(labels[0])
 
     def _on_question_change(self, label):
         self._current_question = label

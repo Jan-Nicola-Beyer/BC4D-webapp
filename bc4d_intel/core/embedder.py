@@ -338,28 +338,9 @@ def full_pipeline(
                 "count": count,
             })
 
-    # Also create UMAP visualization from embeddings
-    umap_coords = None
-    labels = None
-    try:
-        if progress_cb:
-            progress_cb("Creating semantic map...")
-        import ollama
-        texts = [f"search_document: {r}" for r in responses]
-        result = ollama.embed(model="nomic-embed-text", input=texts)
-        embeddings = np.array(result["embeddings"], dtype=np.float32)
-
-        import umap
-        reducer = umap.UMAP(n_components=2, n_neighbors=15, min_dist=0.1,
-                            metric="cosine", random_state=42)
-        umap_coords = reducer.fit_transform(embeddings).astype(np.float32)
-
-        # Build label array from classifications
-        cat_ids = list(set(c["cluster_id"] for c in classifications))
-        cat_to_num = {cid: i for i, cid in enumerate(cat_ids)}
-        labels = np.array([cat_to_num.get(c["cluster_id"], -1) for c in classifications])
-    except Exception as e:
-        log.warning("UMAP visualization failed (non-critical): %s", e)
+    # UMAP visualization removed — user found semantic maps hard to interpret.
+    # Embeddings + UMAP added ~10s per question with minimal insight value.
+    # Distribution bar charts provide clearer information.
 
     if progress_cb:
         n_cats = len(flat_taxonomy)
@@ -370,8 +351,6 @@ def full_pipeline(
         "taxonomy": taxonomy,
         "flat_taxonomy": flat_taxonomy,
         "classifications": classifications,
-        "umap_coords": umap_coords,
-        "labels": labels,
     }
 
 

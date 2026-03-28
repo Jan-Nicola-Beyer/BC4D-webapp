@@ -94,10 +94,12 @@ LIKERT_COLORS = {
 
 # ── AI model config ──────────────────────────────────────────────
 AI_MODELS = {
-    "tagging": "claude-sonnet-4-6",            # free-text tagging (needs German + nuance)
-    "report":  "claude-sonnet-4-6",            # report section writing
-    # Both use Sonnet. Haiku was too weak for nuanced German classification.
-    # Cost difference: $0.37/staffel ($0.82 vs $0.46). Worth it for quality.
+    "tagging": "claude-haiku-4-5-20251001",    # edge case review (simple pick-from-list)
+    "report":  "claude-sonnet-4-6",            # taxonomy design + report sections
+    # Taxonomy design uses "report" (Sonnet) — needs reasoning about themes.
+    # Edge case review uses "tagging" (Haiku) — just picks from existing categories.
+    # Report writing uses "report" (Sonnet) — needs quality German prose.
+    # Saves ~40% on edge case costs without quality loss.
 }
 
 # ── Session / paths ──────────────────────────────────────────────
