@@ -17,9 +17,13 @@ _FRAME_REGISTRY = {
     "analysis":    ("bc4d_intel.screens.screen_analysis",    "AnalysisScreen"),
     "clusters":    ("bc4d_intel.screens.screen_clusters",    "ClustersScreen"),
     "responses":   ("bc4d_intel.screens.screen_responses",   "ResponsesScreen"),
+    "insights":    ("bc4d_intel.screens.screen_insights",    "InsightsScreen"),
     "report":      ("bc4d_intel.screens.screen_report",      "ReportScreen"),
     "settings":    ("bc4d_intel.screens.screen_settings",    "SettingsScreen"),
 }
+
+# Screens that require AI Analysis to have been run
+_REQUIRES_ANALYSIS = {"clusters", "responses", "insights"}
 
 
 class App(ctk.CTk):
@@ -73,6 +77,16 @@ class App(ctk.CTk):
 
     def show_frame(self, key: str):
         if key == self._active_key:
+            return
+        # Check if screen requires AI Analysis to have been run
+        if key in _REQUIRES_ANALYSIS and not hasattr(self, "_analysis_results"):
+            # Show a message instead of navigating
+            from tkinter import messagebox
+            messagebox.showinfo(
+                "Run AI Analysis First",
+                "Please run the AI Analysis first.\n\n"
+                "Go to the 'AI Analysis' screen and click 'Start Free-Text Analysis'."
+            )
             return
         frame = self._ensure_frame(key)
         if self._active_key and self._active_key in self._frames:

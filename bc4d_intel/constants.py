@@ -70,6 +70,7 @@ NAV_ITEMS = [
     ("AI Analysis",  "analysis",    "\U0001F916"),  # robot
     ("Clusters",     "clusters",    "\U0001F3AF"),  # target
     ("Responses",    "responses",   "\U0001F4DD"),  # memo
+    ("Insights",     "insights",    "\U0001F4C8"),  # chart up
     ("Report",       "report",      "\U0001F4C4"),  # document
     ("Settings",     "settings",    "\u2699"),       # gear
 ]

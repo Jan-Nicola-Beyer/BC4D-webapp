@@ -52,26 +52,17 @@ class ClustersScreen(ctk.CTkFrame):
         # Body: taxonomy (left) + map (right)
         body = ctk.CTkFrame(self, fg_color="transparent")
         body.pack(fill="both", expand=True, padx=20, pady=10)
-        body.columnconfigure(0, weight=3)
-        body.columnconfigure(1, weight=2)
-        body.rowconfigure(0, weight=1)
+        # Full-width taxonomy (charts moved to Insights screen)
+        card = W.make_card(body)
+        card.pack(fill="both", expand=True)
 
-        # Left: Taxonomy
-        left = W.make_card(body)
-        left.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
-
-        self._tax_scroll = ctk.CTkScrollableFrame(left, fg_color="transparent")
+        self._tax_scroll = ctk.CTkScrollableFrame(card, fg_color="transparent")
         self._tax_scroll.pack(fill="both", expand=True, padx=6, pady=6)
         W.muted_label(self._tax_scroll,
-            "Select a question above to see its taxonomy.",
+            "Select a question above to see its taxonomy.\n\n"
+            "Each category shows coding rules and exemplar responses.\n"
+            "Click a title to rename it. Charts are on the Insights screen.",
             size=12).pack(padx=20, pady=40)
-
-        # Right: Map + distribution
-        right = W.make_card(body)
-        right.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
-
-        self._chart_frame = ctk.CTkScrollableFrame(right, fg_color="transparent")
-        self._chart_frame.pack(fill="both", expand=True, padx=6, pady=6)
 
     def refresh(self):
         results = getattr(self.app, "_analysis_results", {})
@@ -88,7 +79,6 @@ class ClustersScreen(ctk.CTkFrame):
             return
         data = results[label]
         self._show_taxonomy(data)
-        self._show_map(data, label)
 
     def _show_taxonomy(self, data):
         for w in self._tax_scroll.winfo_children():

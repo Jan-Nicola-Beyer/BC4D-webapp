@@ -173,29 +173,41 @@ def classify_with_cross_encoder(
     if not flat_cats:
         return _fallback_classify(responses, taxonomy)
 
-    # Score each response against each category
-    results = []
+    # Batch all pairs at once for massive speedup.
+    # Before: 135 individual predict() calls (one per response)
+    # After: 1 predict() call with 135×12 = 1,620 pairs
     n = len(responses)
     n_cats = len(flat_cats)
 
-    for i, response in enumerate(responses):
-        if progress_cb and (i + 1) % 50 == 0:
-            progress_cb(f"Classifying {i+1}/{n} ({int((i+1)/n*100)}%)...")
+    if progress_cb:
+        progress_cb(f"Scoring {n} responses × {n_cats} categories = {n * n_cats} pairs...")
 
-        # Score against all categories
-        pairs = [(response, cat["ref_text"]) for cat in flat_cats]
-        scores = reranker.predict(pairs)
+    # Build all pairs
+    all_pairs = []
+    for response in responses:
+        for cat in flat_cats:
+            all_pairs.append((response, cat["ref_text"]))
 
-        # Find best and second-best
+    # Single batch prediction — 10-50x faster than one-by-one
+    all_scores = reranker.predict(all_pairs, show_progress_bar=False)
+
+    # Reshape to (n_responses, n_categories)
+    score_matrix = np.array(all_scores).reshape(n, n_cats)
+
+    if progress_cb:
+        progress_cb(f"Assigning categories...")
+
+    results = []
+    for i in range(n):
+        scores = score_matrix[i]
         sorted_idx = np.argsort(scores)[::-1]
         best_idx = sorted_idx[0]
         best_score = scores[best_idx]
-        second_score = scores[sorted_idx[1]] if len(sorted_idx) > 1 else -999
+        second_score = scores[sorted_idx[1]] if n_cats > 1 else -999
 
         best_cat = flat_cats[best_idx]
-
-        # Confidence based on margin between top-2 scores
         margin = best_score - second_score
+
         if margin > 2.0:
             confidence = "high"
         elif margin > 0.5:
@@ -204,7 +216,7 @@ def classify_with_cross_encoder(
             confidence = "low"
 
         results.append({
-            "text": response,
+            "text": responses[i],
             "cluster_id": best_cat["id"],
             "cluster_title": best_cat["title"],
             "main_category": best_cat["main_category"],
