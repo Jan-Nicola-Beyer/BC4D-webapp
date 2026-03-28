@@ -168,11 +168,34 @@ class AnalysisScreen(ctk.CTkFrame):
                     self.after(0, lambda m=msg: self._progress["detail_label"].configure(text=m))
 
                 try:
-                    res = full_pipeline(responses, api_key, question=col_name,
-                                        progress_cb=on_progress)
+                    # CACHE-FIRST: check if responses already classified
+                    from bc4d_intel.core.answer_cache import classify_from_cache, add_to_cache
+                    cached, uncached = classify_from_cache(
+                        label, responses, progress_cb=on_progress)
+
+                    if uncached:
+                        # AI only for uncached responses
+                        on_progress(f"AI classifying {len(uncached)} new responses "
+                                    f"({len(cached)} from cache)...")
+                        res = full_pipeline(uncached, api_key, question=col_name,
+                                            progress_cb=on_progress)
+                        # Merge cached + AI results
+                        res["classifications"] = cached + res["classifications"]
+                        # Add new AI results to cache for future use
+                        add_to_cache(label, res["classifications"],
+                                     staffel=self.app.app_state.staffel_name)
+                    else:
+                        # 100% cache hit — no AI needed!
+                        on_progress(f"100% cache hit! All {len(cached)} from cache (free)")
+                        res = {
+                            "taxonomy": self.app.app_state.taxonomies.get(label, {}),
+                            "flat_taxonomy": self.app.app_state.flat_taxonomies.get(label, []),
+                            "classifications": cached,
+                        }
+
                     all_results[label] = res
 
-                    # CHECKPOINT: save after each question so crash doesn't lose all work
+                    # CHECKPOINT: save after each question
                     self.app.app_state.tagged_responses[label] = res["classifications"]
                     self.app.app_state.taxonomies[label] = res.get("taxonomy", {})
                     self.app.app_state.flat_taxonomies[label] = res.get("flat_taxonomy", [])
