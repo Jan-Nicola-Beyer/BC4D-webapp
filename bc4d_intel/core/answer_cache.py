@@ -32,7 +32,10 @@ CACHE_DB_PATH = os.path.join(APP_DIR, "sessions", "answer_cache.db")
 # Similarity threshold — responses above this reuse cached classification.
 # 0.90 = very conservative (nearly identical text).
 # Lower = more cache hits but more risk of wrong classification.
-MATCH_THRESHOLD = 0.90
+# Lowered from 0.90 to 0.78 after testing showed common paraphrases
+# scoring 0.77-0.85. The 6-layer safety system (sentiment, negation,
+# conditional, subject, category, question-context) catches mismatches.
+MATCH_THRESHOLD = 0.78
 
 # ── Sentiment polarity guard ─────────────────────────────────────
 # Prevents matching "workshop was great" to "workshop was boring".
@@ -295,6 +298,30 @@ def classify_from_cache(
                 uncached.append(response)
                 continue
 
+            # Cross-check: question context + response sentiment
+            new_sent = _sentiment(response)
+            q_lower = question.lower() if isinstance(question, str) else ""
+
+            # "Staerken" / "gut gefallen" questions expect positive answers
+            # A negative response here is always a mismatch
+            if new_sent == -1 and any(w in q_lower for w in ["staerke", "gut gefallen", "besonders gut"]):
+                uncached.append(response)
+                continue
+            # "Verbesserung" questions expect critical answers
+            # A purely positive response here is a mismatch
+            if new_sent == 1 and any(w in q_lower for w in ["verbesser", "nicht verstaendlich"]):
+                uncached.append(response)
+                continue
+
+            # Also check cached category alignment
+            cached_cat = (cached.get("main_category", "") + " " + cached.get("cluster_title", "")).lower()
+            if new_sent == -1 and any(w in cached_cat for w in ["positiv", "lob", "staerke", "gut"]):
+                uncached.append(response)
+                continue
+            if new_sent == 1 and any(w in cached_cat for w in ["negativ", "kritik", "verbesser", "schlecht"]):
+                uncached.append(response)
+                continue
+
             # Short responses need higher threshold (too easy to match wrong)
             if len(response.split()) < 4 and normalized < 0.95:
                 uncached.append(response)
@@ -365,7 +392,17 @@ def test_reliability(
     score_ok = normalized >= threshold
     safety_ok = _safe_to_cache_match(test_text, best["response_text"])
     short_ok = len(test_text.split()) >= 4 or normalized >= 0.95
-    matched = score_ok and safety_ok and short_ok
+
+    # Question-context guard (same as classify_from_cache)
+    q_lower = _normalize_question(question).lower()
+    new_sent = _sentiment(test_text)
+    context_ok = True
+    if new_sent == -1 and any(w in q_lower for w in ["staerke", "gut gefallen", "besonders gut"]):
+        context_ok = False
+    if new_sent == 1 and any(w in q_lower for w in ["verbesser", "nicht verstaendlich"]):
+        context_ok = False
+
+    matched = score_ok and safety_ok and short_ok and context_ok
 
     result = {
         "matched": matched,
@@ -377,9 +414,12 @@ def test_reliability(
         "main_category": best["main_category"],
         "n_cached": len(cached_answers),
     }
-    if score_ok and not safety_ok:
+    if score_ok and not context_ok:
+        result["context_blocked"] = True
+        result["reason"] = "Response sentiment conflicts with question type — sent to AI"
+    elif score_ok and not safety_ok:
         result["safety_blocked"] = True
-        result["reason"] = "High similarity but safety check failed (sentiment/negation/subject mismatch) — sent to AI"
+        result["reason"] = "High similarity but safety check failed (sentiment/negation/subject) — sent to AI"
     elif score_ok and not short_ok:
         result["short_text_blocked"] = True
         result["reason"] = "Short response needs >95% match for safety — sent to AI"
