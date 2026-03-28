@@ -34,6 +34,116 @@ CACHE_DB_PATH = os.path.join(APP_DIR, "sessions", "answer_cache.db")
 # Lower = more cache hits but more risk of wrong classification.
 MATCH_THRESHOLD = 0.90
 
+# ── Sentiment polarity guard ─────────────────────────────────────
+# Prevents matching "workshop was great" to "workshop was boring".
+# Cross-encoder scores structural similarity, but sentiment flips
+# must force a cache miss.
+
+_POSITIVE = frozenset(
+    "gut toll super hervorragend prima wunderbar hilfreich informativ "
+    "kompetent angenehm effektiv wertvoll bereichernd spannend interessant "
+    "professionell engagiert freundlich motivierend verstaendlich klar "
+    "praxisnah nah relevant aktuell lehrreich positiv gerne empfehlen "
+    "gefallen geholfen gelernt verbessert gestaerkt sicher zuversichtlich".split()
+)
+
+_NEGATIVE = frozenset(
+    "schlecht langweilig nicht kein nie leider schwierig verwirrend "
+    "unklar kompliziert oberflaechlich unnoetig ueberfluessig enttaeuschend "
+    "unverstaendlich unstrukturiert chaotisch monoton anstrengend nervig "
+    "wenig mangelhaft fehlend problematisch negativ ungenuegend langatmig "
+    "schleppend veraltet wiederholung redundant boring fade "
+    "besser verbessern verbesserung haette waere koennte sollte".split()
+)
+
+
+def _sentiment(text: str) -> int:
+    """Quick sentiment polarity: +1 positive, -1 negative, 0 neutral."""
+    words = set(text.lower().split())
+    pos = len(words & _POSITIVE)
+    neg = len(words & _NEGATIVE)
+    if pos > 0 and neg == 0:
+        return 1
+    if neg > 0 and pos == 0:
+        return -1
+    if pos > neg:
+        return 1
+    if neg > pos:
+        return -1
+    return 0
+
+
+def _sentiments_compatible(text_a: str, text_b: str) -> bool:
+    """Check if two texts have compatible sentiments.
+
+    Returns False only if one is clearly positive and the other clearly negative.
+    Neutral matches with anything.
+    """
+    sa = _sentiment(text_a)
+    sb = _sentiment(text_b)
+    if sa == 1 and sb == -1:
+        return False
+    if sa == -1 and sb == 1:
+        return False
+    return True
+
+
+# ── Additional safeguards ────────────────────────────────────────
+
+_NEGATION_WORDS = frozenset("nicht kein keine keinen keiner nie niemals kaum wenig".split())
+_CONDITIONAL = frozenset("waere haette koennte sollte wenn falls obwohl trotzdem".split())
+
+
+def _safe_to_cache_match(new_text: str, cached_text: str) -> bool:
+    """Multi-layer safety check before accepting a cache match.
+
+    Returns False if any safeguard detects a potential misclassification.
+    """
+    new_lower = new_text.lower()
+    cached_lower = cached_text.lower()
+    new_words = set(new_lower.split())
+    cached_words = set(cached_lower.split())
+
+    # Guard 1: Sentiment polarity conflict
+    if not _sentiments_compatible(new_text, cached_text):
+        return False
+
+    # Guard 2: Negation asymmetry
+    # "nicht informativ" must not match "informativ"
+    new_has_neg = bool(new_words & _NEGATION_WORDS)
+    cached_has_neg = bool(cached_words & _NEGATION_WORDS)
+    if new_has_neg != cached_has_neg:
+        # One has negation, the other doesn't — potential flip
+        return False
+
+    # Guard 3: Very short responses (< 4 words) need higher threshold
+    # "Gut" could match "Gut strukturiert" or "Gut, dass es vorbei ist"
+    # Handled by caller raising threshold for short texts
+
+    # Guard 4: Conditional vs definitive
+    # "Waere besser gewesen" vs "War gut" — different evaluation
+    new_conditional = bool(new_words & _CONDITIONAL)
+    cached_conditional = bool(cached_words & _CONDITIONAL)
+    if new_conditional != cached_conditional:
+        # One is hypothetical, the other is definitive
+        # Only block if sentiments also differ
+        if _sentiment(new_text) != _sentiment(cached_text):
+            return False
+
+    # Guard 5: Subject mismatch for very short responses
+    # "Trainerin toll" vs "Material toll" — different subjects
+    # For responses < 6 words, require at least 1 content word overlap
+    if len(new_words) < 6 and len(cached_words) < 6:
+        content_new = new_words - _POSITIVE - _NEGATIVE - _NEGATION_WORDS - \
+            frozenset("der die das ein eine und oder war ist sehr".split())
+        content_cached = cached_words - _POSITIVE - _NEGATIVE - _NEGATION_WORDS - \
+            frozenset("der die das ein eine und oder war ist sehr".split())
+        if content_new and content_cached and not (content_new & content_cached):
+            # No content word overlap in short responses → different subjects
+            return False
+
+    return True
+
 
 def _get_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(CACHE_DB_PATH)
@@ -179,12 +289,23 @@ def classify_from_cache(
 
         if normalized >= threshold:
             cached = cached_answers[best_idx]
+
+            # Multi-layer safety check: sentiment, negation, conditional, subject
+            if not _safe_to_cache_match(response, cached["response_text"]):
+                uncached.append(response)
+                continue
+
+            # Short responses need higher threshold (too easy to match wrong)
+            if len(response.split()) < 4 and normalized < 0.95:
+                uncached.append(response)
+                continue
+
             cached_results.append({
                 "text": response,
                 "cluster_id": cached["cluster_id"],
                 "cluster_title": cached["cluster_title"],
                 "main_category": cached["main_category"],
-                "confidence": "high",  # cache match = high confidence
+                "confidence": "high",
                 "cache_score": round(normalized, 3),
                 "cache_match": cached["response_text"][:60],
                 "human_override": "",
@@ -241,8 +362,13 @@ def test_reliability(
     normalized = 1.0 / (1.0 + np.exp(-best_score))
 
     best = cached_answers[best_idx]
-    return {
-        "matched": normalized >= threshold,
+    score_ok = normalized >= threshold
+    safety_ok = _safe_to_cache_match(test_text, best["response_text"])
+    short_ok = len(test_text.split()) >= 4 or normalized >= 0.95
+    matched = score_ok and safety_ok and short_ok
+
+    result = {
+        "matched": matched,
         "score": round(normalized, 3),
         "threshold": threshold,
         "cache_match": best["response_text"],
@@ -251,3 +377,10 @@ def test_reliability(
         "main_category": best["main_category"],
         "n_cached": len(cached_answers),
     }
+    if score_ok and not safety_ok:
+        result["safety_blocked"] = True
+        result["reason"] = "High similarity but safety check failed (sentiment/negation/subject mismatch) — sent to AI"
+    elif score_ok and not short_ok:
+        result["short_text_blocked"] = True
+        result["reason"] = "Short response needs >95% match for safety — sent to AI"
+    return result
