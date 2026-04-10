@@ -1349,10 +1349,12 @@ async function saveStaffelName() {
 async function clearSession() {
     const s = $('#session-clear-status');
     try {
+        if (!confirm('Are you sure you want to clear the entire session? This will wipe all uploaded data and AI clusters.')) return;
+        if (s) { s.textContent = 'Clearing...'; s.style.color = 'var(--particle-blue)'; }
         await api('/api/session/clear', { method: 'POST' });
         _reportSections = {}; window._clustersData = {};
-        if (s) { s.textContent = 'Session cleared.'; s.style.color = '#6ee7b7'; }
-        setTimeout(loadSettings, 300);
+        if (s) { s.textContent = 'Session cleared. Reloading application...'; s.style.color = '#6ee7b7'; }
+        setTimeout(() => { location.reload(); }, 600);
     } catch(e) {
         if (s) { s.textContent = `Error: ${e.message}`; s.style.color = '#fca5a5'; }
     }
