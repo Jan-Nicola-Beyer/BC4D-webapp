@@ -1,0 +1,115 @@
+
+============================================================
+CRASH: 2026-03-29 11:51:53.496284
+Traceback (most recent call last):
+  File "C:\Program Files\Python38\lib\runpy.py", line 193, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "C:\Program Files\Python38\lib\runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\main.py", line 16, in <module>
+    main()
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\main.py", line 11, in main
+    app = App()
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\app.py", line 56, in __init__
+    self._sidebar = Sidebar(self, app=self)
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\ui\sidebar.py", line 15, in __init__
+    self._build()
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\ui\sidebar.py", line 42, in _build
+    btn = ctk.CTkButton(
+  File "C:\Users\beyer\AppData\Roaming\Python\Python38\site-packages\customtkinter\windows\widgets\ctk_button.py", line 62, in __init__
+    self._hover_color: Union[str, Tuple[str, str]] = ThemeManager.theme["CTkButton"]["hover_color"] if hover_color is None else self._check_color_type(hover_color)
+  File "C:\Users\beyer\AppData\Roaming\Python\Python38\site-packages\customtkinter\windows\widgets\appearance_mode\appearance_mode_base_class.py", line 55, in _check_color_type
+    raise ValueError(f"transparency is not allowed for this attribute")
+ValueError: transparency is not allowed for this attribute
+
+============================================================
+CRASH: 2026-03-29 11:53:21.933043
+Traceback (most recent call last):
+  File "C:\Program Files\Python38\lib\runpy.py", line 193, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "C:\Program Files\Python38\lib\runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\main.py", line 16, in <module>
+    main()
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\main.py", line 11, in main
+    app = App()
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\app.py", line 56, in __init__
+    self._sidebar = Sidebar(self, app=self)
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\ui\sidebar.py", line 15, in __init__
+    self._build()
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\ui\sidebar.py", line 42, in _build
+    btn = ctk.CTkButton(
+  File "C:\Users\beyer\AppData\Roaming\Python\Python38\site-packages\customtkinter\windows\widgets\ctk_button.py", line 62, in __init__
+    self._hover_color: Union[str, Tuple[str, str]] = ThemeManager.theme["CTkButton"]["hover_color"] if hover_color is None else self._check_color_type(hover_color)
+  File "C:\Users\beyer\AppData\Roaming\Python\Python38\site-packages\customtkinter\windows\widgets\appearance_mode\appearance_mode_base_class.py", line 55, in _check_color_type
+    raise ValueError(f"transparency is not allowed for this attribute")
+ValueError: transparency is not allowed for this attribute
+
+============================================================
+CRASH: 2026-03-29 12:00:09.092983
+Traceback (most recent call last):
+  File "C:\Program Files\Python38\lib\runpy.py", line 193, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "C:\Program Files\Python38\lib\runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\main.py", line 16, in <module>
+    main()
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\main.py", line 11, in main
+    app = App()
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\app.py", line 56, in __init__
+    self._sidebar = Sidebar(self, app=self)
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\ui\sidebar.py", line 15, in __init__
+    self._build()
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\ui\sidebar.py", line 42, in _build
+    btn = ctk.CTkButton(
+  File "C:\Users\beyer\AppData\Roaming\Python\Python38\site-packages\customtkinter\windows\widgets\ctk_button.py", line 62, in __init__
+    self._hover_color: Union[str, Tuple[str, str]] = ThemeManager.theme["CTkButton"]["hover_color"] if hover_color is None else self._check_color_type(hover_color)
+  File "C:\Users\beyer\AppData\Roaming\Python\Python38\site-packages\customtkinter\windows\widgets\appearance_mode\appearance_mode_base_class.py", line 55, in _check_color_type
+    raise ValueError(f"transparency is not allowed for this attribute")
+ValueError: transparency is not allowed for this attribute
+
+============================================================
+CRASH: 2026-03-29 12:01:24.121691
+Traceback (most recent call last):
+  File "C:\Program Files\Python38\lib\runpy.py", line 193, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "C:\Program Files\Python38\lib\runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\main.py", line 16, in <module>
+    main()
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\main.py", line 11, in main
+    app = App()
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\app.py", line 56, in __init__
+    self._sidebar = Sidebar(self, app=self)
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\ui\sidebar.py", line 15, in __init__
+    self._build()
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\ui\sidebar.py", line 42, in _build
+    btn = ctk.CTkButton(
+  File "C:\Users\beyer\AppData\Roaming\Python\Python38\site-packages\customtkinter\windows\widgets\ctk_button.py", line 62, in __init__
+    self._hover_color: Union[str, Tuple[str, str]] = ThemeManager.theme["CTkButton"]["hover_color"] if hover_color is None else self._check_color_type(hover_color)
+  File "C:\Users\beyer\AppData\Roaming\Python\Python38\site-packages\customtkinter\windows\widgets\appearance_mode\appearance_mode_base_class.py", line 55, in _check_color_type
+    raise ValueError(f"transparency is not allowed for this attribute")
+ValueError: transparency is not allowed for this attribute
+
+============================================================
+CRASH: 2026-03-29 12:02:15.674034
+Traceback (most recent call last):
+  File "C:\Program Files\Python38\lib\runpy.py", line 193, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "C:\Program Files\Python38\lib\runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\main.py", line 16, in <module>
+    main()
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\main.py", line 11, in main
+    app = App()
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\app.py", line 56, in __init__
+    self._sidebar = Sidebar(self, app=self)
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\ui\sidebar.py", line 15, in __init__
+    self._build()
+  File "C:\Users\beyer\Claude\V2\BC4D Intel\bc4d_intel\ui\sidebar.py", line 42, in _build
+    btn = ctk.CTkButton(
+  File "C:\Users\beyer\AppData\Roaming\Python\Python38\site-packages\customtkinter\windows\widgets\ctk_button.py", line 62, in __init__
+    self._hover_color: Union[str, Tuple[str, str]] = ThemeManager.theme["CTkButton"]["hover_color"] if hover_color is None else self._check_color_type(hover_color)
+  File "C:\Users\beyer\AppData\Roaming\Python\Python38\site-packages\customtkinter\windows\widgets\appearance_mode\appearance_mode_base_class.py", line 55, in _check_color_type
+    raise ValueError(f"transparency is not allowed for this attribute")
+ValueError: transparency is not allowed for this attribute

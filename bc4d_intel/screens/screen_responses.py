@@ -16,11 +16,20 @@ CLUSTER_COLORS = [
 ]
 
 
+def _short_label(label: str) -> str:
+    import re
+    s = label.strip().split("\n")[0].split("\r")[0]
+    s = re.sub(r'\s*\([^)]*\)', '', s)
+    s = s.replace('\xa0', ' ').strip()
+    return s[:70] + "..." if len(s) > 70 else s
+
+
 class ResponsesScreen(ctk.CTkFrame):
     def __init__(self, master, app):
         super().__init__(master, fg_color=C.BG, corner_radius=0)
         self.app = app
         self._current_question = None
+        self._label_map = {}
         self._build()
 
     def _build(self):
@@ -36,15 +45,22 @@ class ResponsesScreen(ctk.CTkFrame):
         W.heading(row, "Responses", size=22).pack(side="left")
 
         self._question_var = ctk.StringVar(value="Select a question...")
-        self._question_menu = ctk.CTkOptionMenu(
+        self._question_menu = ctk.CTkComboBox(
             row, variable=self._question_var,
             values=["Run AI Analysis first"],
             font=ctk.CTkFont(family="Segoe UI", size=11),
-            fg_color=C.BTN, button_color=C.DIM,
-            height=32, width=400, corner_radius=6,
+            fg_color=C.ENTRY_BG, border_color=C.ENTRY_BORDER,
+            button_color=C.DIM, dropdown_font=ctk.CTkFont(size=11),
+            height=32, corner_radius=6, state="readonly",
             command=self._on_question_change,
         )
-        self._question_menu.pack(side="right")
+        self._question_menu.pack(side="right", fill="x", expand=True, padx=(16, 0))
+
+        self._question_full_lbl = ctk.CTkLabel(inner,
+            text="Review each response and its assigned category. Change the category if needed.",
+            font=ctk.CTkFont(family="Segoe UI", size=9),
+            text_color=C.MUTED, anchor="w", wraplength=800)
+        self._question_full_lbl.pack(anchor="w")
 
         # Filter + action bar
         action_bar = ctk.CTkFrame(self, fg_color="transparent")
@@ -97,14 +113,22 @@ class ResponsesScreen(ctk.CTkFrame):
                 self.app._analysis_results = results
 
         if results:
-            labels = list(results.keys())
-            self._question_menu.configure(values=labels)
-            if labels and self._question_var.get() in ("Select a question...", "Run AI Analysis first"):
-                self._question_var.set(labels[0])
-                self._on_question_change(labels[0])
+            self._label_map = {}
+            short_labels = []
+            for orig in results.keys():
+                short = _short_label(orig)
+                if short in self._label_map:
+                    short = short + " (2)"
+                self._label_map[short] = orig
+                short_labels.append(short)
+            self._question_menu.configure(values=short_labels)
+            if short_labels and self._question_var.get() in ("Select a question...", "Run AI Analysis first"):
+                self._question_var.set(short_labels[0])
+                self._on_question_change(short_labels[0])
 
-    def _on_question_change(self, label):
-        self._current_question = label
+    def _on_question_change(self, short_label):
+        self._current_question = self._label_map.get(short_label, short_label)
+        self._question_full_lbl.configure(text=self._current_question)
         self._refresh_list()
 
     def _get_data(self):
@@ -192,11 +216,14 @@ class ResponsesScreen(ctk.CTkFrame):
             )
             main_dd.pack(side="right", padx=2)
 
-            # Row 2: Full response text
-            ctk.CTkLabel(card, text=item["text"],
+            # Row 2: Full response text (with magnifier for long text)
+            text_lbl = ctk.CTkLabel(card, text=item["text"],
                          font=ctk.CTkFont(family="Segoe UI", size=11),
                          text_color=C.TEXT, anchor="w", wraplength=700,
-                         justify="left").pack(fill="x", padx=10, pady=(0, 6))
+                         justify="left")
+            text_lbl.pack(fill="x", padx=10, pady=(0, 6))
+            if len(item["text"]) > 60:
+                W.magnify(text_lbl)
 
     def _on_main_change(self, idx, new_main, sub_dropdown, sub_var):
         """When main category changes, update sub-category dropdown options."""
@@ -326,6 +353,20 @@ class ResponsesScreen(ctk.CTkFrame):
         self.app.app_state.taxonomies[self._current_question] = data.get("taxonomy", {})
         self.app.app_state.flat_taxonomies[self._current_question] = data.get("flat_taxonomy", [])
         self.app.app_state.save()
+
+        # Update _analysis_results so other screens see the changes
+        if hasattr(self.app, "_analysis_results") and self._current_question in self.app._analysis_results:
+            self.app._analysis_results[self._current_question]["classifications"] = data["classifications"]
+            self.app._analysis_results[self._current_question]["flat_taxonomy"] = data.get("flat_taxonomy", [])
+
+        # Refresh Categories and Insights screens if they are loaded
+        for screen_key in ("clusters", "insights"):
+            screen = self.app._frames.get(screen_key)
+            if screen and hasattr(screen, "refresh"):
+                try:
+                    screen.refresh()
+                except Exception:
+                    pass
 
     def rebuild(self):
         for w in self.winfo_children():

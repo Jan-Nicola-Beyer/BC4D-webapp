@@ -315,14 +315,13 @@ def full_pipeline(
     """
     n = len(responses)
 
-    # Step 1: LLM designs taxonomy (Sonnet, ~$0.02)
+    # Step 1: LLM designs taxonomy (Sonnet, ~$0.03)
     taxonomy = design_taxonomy(question, responses, api_key, progress_cb)
 
-    # Step 2: Cross-encoder classifies (free, local)
-    classifications = classify_with_cross_encoder(responses, taxonomy, progress_cb)
-
-    # Step 3: LLM reviews edge cases (Sonnet, ~$0.02 for ~20 edge cases)
-    classifications = review_edge_cases(classifications, taxonomy, api_key, progress_cb)
+    # Step 2: LLM classifies all responses using the taxonomy (Haiku, ~$0.028)
+    from bc4d_intel.core.answer_cache import classify_with_llm
+    classifications = classify_with_llm(question, responses, taxonomy, api_key,
+                                         progress_cb=progress_cb)
 
     # Build flat taxonomy for UI display
     flat_taxonomy = []

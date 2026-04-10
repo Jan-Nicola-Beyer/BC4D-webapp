@@ -34,6 +34,13 @@ class DashboardScreen(ctk.CTkFrame):
         row.pack(fill="x")
         W.heading(row, "Dashboard", size=22).pack(side="left")
 
+        ctk.CTkButton(
+            row, text="Export Charts", width=120, height=32,
+            fg_color=C.BTN, hover_color=C.SELECT,
+            font=ctk.CTkFont(family="Segoe UI", size=11),
+            corner_radius=6, command=self._export_dashboard_charts,
+        ).pack(side="right", padx=(8, 0))
+
         # Tab selector
         self._tab_var = ctk.StringVar(value="pre")
         self._tab_selector = ctk.CTkSegmentedButton(
@@ -46,7 +53,7 @@ class DashboardScreen(ctk.CTkFrame):
         self._tab_selector.pack(side="right")
 
         # Next step hint
-        ctk.CTkLabel(inner, text="Review charts, then go to Validation to tag free-text responses",
+        ctk.CTkLabel(inner, text="Overview of survey results. Next step: AI Analysis to categorise free-text responses.",
                      font=ctk.CTkFont(family="Segoe UI", size=9),
                      text_color=C.MUTED).pack(anchor="w")
 
@@ -59,13 +66,19 @@ class DashboardScreen(ctk.CTkFrame):
     def _show_placeholder(self):
         for w in self._chart_frame.winfo_children():
             w.destroy()
-        W.muted_label(self._chart_frame,
-            "Load both survey files from the Import screen to see charts.\n\n"
-            "Use the tabs above to switch between:\n"
-            "  - Pre-Survey: baseline data (all respondents)\n"
-            "  - Post-Survey: outcome data (all respondents)\n"
-            "  - Matched Panel: individual change (paired respondents only)",
-            size=12).pack(padx=20, pady=40)
+
+        from bc4d_intel.ui.guide import info_banner
+        info_banner(self._chart_frame,
+            "Survey Data Required",
+            "To see quantitative charts (Likert scales, pre/post comparison), "
+            "you need to load the original Excel survey files.\n\n"
+            "Go to the Import screen and load both the Pre-Survey and "
+            "Post-Survey Excel files (.xlsx).\n\n"
+            "Note: If you imported AI Analysis results from a JSON file, "
+            "the dashboard still needs the raw Excel data for the statistical "
+            "charts. The JSON only contains the categorised free-text responses.",
+            icon="\U0001F4CA",
+        ).pack(fill="x", padx=20, pady=40)
 
     def _on_tab_change(self, value):
         tab_map = {"Pre-Survey": "pre", "Post-Survey": "post", "Matched Panel": "matched"}
@@ -83,7 +96,13 @@ class DashboardScreen(ctk.CTkFrame):
             self._show_placeholder()
             return
 
-        # Clear previous charts
+        # Clear previous charts — close matplotlib figures to prevent memory leak
+        import matplotlib.pyplot as plt
+        for canvas in self._canvas_widgets:
+            try:
+                plt.close(canvas.figure)
+            except Exception:
+                pass
         for w in self._chart_frame.winfo_children():
             w.destroy()
         self._canvas_widgets.clear()
@@ -241,17 +260,20 @@ class DashboardScreen(ctk.CTkFrame):
         pcts = [t["pct_applied"] for t in transfer_data]
         y = np.arange(n)
 
-        bars = ax.barh(y, pcts, height=0.5, color=C.BC4D_TEAL, edgecolor="#0d1117")
+        from bc4d_intel.core.chart_builder import _chart_colors
+        cc = _chart_colors()
+
+        bars = ax.barh(y, pcts, height=0.5, color=C.BC4D_TEAL, edgecolor=cc["edge"])
         ax.set_yticks(y)
         ax.set_yticklabels(labels, fontsize=10)
-        ax.set_xlabel("% Applied (manchmal + regelmaessig)", fontsize=11)
+        ax.set_xlabel("% angewendet (manchmal + regelmaessig)", fontsize=11)
         ax.set_xlim(0, 105)
         ax.set_title(title, fontsize=14, fontweight="bold", pad=12)
         ax.invert_yaxis()
 
         for i, (pct, t) in enumerate(zip(pcts, transfer_data)):
             ax.text(pct + 1, i, f"{pct}% (n={t['n']})", va="center",
-                    fontsize=10, color="#e6edf3")
+                    fontsize=10, color=cc["text"])
 
         fig.tight_layout()
         self._embed_figure(fig)
@@ -321,6 +343,82 @@ class DashboardScreen(ctk.CTkFrame):
                 ctk.CTkLabel(row, text=str(text), width=width,
                              font=ctk.CTkFont(family="Consolas", size=9),
                              text_color=color).pack(side="left", padx=4, pady=2)
+
+    def _export_dashboard_charts(self):
+        """Export all currently displayed dashboard charts as PNG + PDF + data."""
+        import os
+        from tkinter import filedialog
+
+        if not self._canvas_widgets:
+            return
+
+        output_dir = filedialog.askdirectory(title="Select folder for dashboard export")
+        if not output_dir:
+            return
+
+        folder = os.path.join(output_dir, f"dashboard_{self._current_tab}")
+        os.makedirs(folder, exist_ok=True)
+
+        exported = 0
+        for i, canvas in enumerate(self._canvas_widgets):
+            try:
+                fig = canvas.figure
+                name = f"chart_{i+1}"
+                # Original theme
+                fig.savefig(os.path.join(folder, f"{name}.png"),
+                            dpi=200, bbox_inches="tight")
+                fig.savefig(os.path.join(folder, f"{name}.pdf"),
+                            bbox_inches="tight")
+                fig.savefig(os.path.join(folder, f"{name}.svg"),
+                            bbox_inches="tight")
+                # White/print version
+                orig_fc = fig.get_facecolor()
+                fig.patch.set_facecolor("white")
+                for ax in fig.axes:
+                    ax.set_facecolor("white")
+                    for spine in ax.spines.values():
+                        spine.set_color("#CCCCCC")
+                    ax.tick_params(colors="#333333")
+                    ax.xaxis.label.set_color("#333333")
+                    ax.yaxis.label.set_color("#333333")
+                    ax.title.set_color("#333333")
+                fig.savefig(os.path.join(folder, f"{name}_print.png"),
+                            dpi=200, bbox_inches="tight", facecolor="white")
+                fig.savefig(os.path.join(folder, f"{name}_print.svg"),
+                            bbox_inches="tight", facecolor="white")
+                exported += 5
+            except Exception:
+                pass
+
+        # Also export underlying data as Excel
+        try:
+            import pandas as pd
+            result = self.app._match_result
+            imp = self.app._frames.get("import")
+            if result and imp:
+                from bc4d_intel.core.stats_engine import analyze_all_likert
+                tab = self._current_tab
+                if tab == "pre":
+                    items = analyze_all_likert(result["pre_all"], imp._pre_roles)
+                elif tab == "post":
+                    items = analyze_all_likert(result["post_all"], imp._post_roles)
+                else:
+                    items = []
+
+                rows = []
+                for item in items:
+                    s = item["stats"]
+                    if s["mean"] is not None:
+                        rows.append({"Item": item["label"][:60], "N": s["n"],
+                                     "Mean": s["mean"], "SD": s["sd"],
+                                     "CI_Lower": s["ci_lower"], "CI_Upper": s["ci_upper"],
+                                     "Agree_%": s["pct_agree"], "Disagree_%": s["pct_disagree"]})
+                if rows:
+                    df = pd.DataFrame(rows)
+                    df.to_excel(os.path.join(folder, "data.xlsx"), index=False)
+                    exported += 1
+        except Exception:
+            pass
 
     def rebuild(self):
         for w in self.winfo_children():

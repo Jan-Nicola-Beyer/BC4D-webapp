@@ -15,21 +15,87 @@ from bc4d_intel.ai.prompts import REPORT_SYSTEM, REPORT_SECTIONS
 log = logging.getLogger("bc4d_intel.ai.report")
 
 
+# Which data context sections each report section needs.
+# This avoids sending 6,000+ tokens when 1,000 would suffice.
+_SECTION_DATA_NEEDS = {
+    "executive_summary": ["STAFFEL", "QUANTITATIVE", "PRE/POST", "QUALITATIVE"],
+    "method_sample":     ["STAFFEL"],
+    "quantitative_results": ["QUANTITATIVE"],
+    "qualitative_findings": ["QUALITATIVE"],
+    "pre_post_comparison": ["PRE/POST"],
+    "recommendations": ["QUANTITATIVE", "PRE/POST", "QUALITATIVE"],
+    "appendix": ["QUANTITATIVE", "PRE/POST"],
+}
+
+
+def _filter_context(data_context: str, section_name: str) -> str:
+    """Extract only the data sections relevant to this report section.
+
+    Reduces token usage by ~60% per call (e.g. qualitative_findings
+    doesn't need quantitative stats).
+    """
+    needs = _SECTION_DATA_NEEDS.get(section_name)
+    if not needs:
+        return data_context
+
+    blocks = data_context.split("===")
+    filtered = []
+    for i in range(0, len(blocks) - 1, 2):
+        header = blocks[i + 1].strip().split("\n")[0] if i + 1 < len(blocks) else ""
+        content = blocks[i + 2] if i + 2 < len(blocks) else ""
+        if any(need in header for need in needs):
+            filtered.append(f"=== {header} ==={content}")
+
+    # Always include staffel info (tiny, always useful)
+    if "STAFFEL" not in needs:
+        for i in range(0, len(blocks) - 1, 2):
+            header = blocks[i + 1].strip().split("\n")[0] if i + 1 < len(blocks) else ""
+            if "STAFFEL" in header:
+                content = blocks[i + 2] if i + 2 < len(blocks) else ""
+                filtered.insert(0, f"=== {header} ==={content}")
+                break
+
+    return "\n".join(filtered) if filtered else data_context
+
+
 def generate_section(
     section_name: str,
     data_context: str,
     api_key: str,
     stream_cb=None,
+    previous_sections: Optional[Dict[str, str]] = None,
 ) -> str:
-    """Generate one report section via Sonnet."""
+    """Generate one report section via Sonnet.
+
+    Each section gets only the data it needs (filtered context)
+    and a brief summary of previously generated sections for coherence.
+    """
     section_prompt = REPORT_SECTIONS.get(section_name, "")
     if not section_prompt:
         return f"*Unbekannter Abschnitt: {section_name}*"
 
+    # Filter context to only relevant data
+    focused_context = _filter_context(data_context, section_name)
+
+    # Add brief summary of previous sections for coherence
+    prev_summary = ""
+    if previous_sections:
+        summaries = []
+        for name, text in previous_sections.items():
+            # Take first 200 chars of each previous section
+            first_lines = text.strip()[:200]
+            summaries.append(f"[{name}]: {first_lines}...")
+        prev_summary = (
+            "\n\nBEREITS GESCHRIEBENE ABSCHNITTE (Zusammenfassung):\n"
+            + "\n".join(summaries)
+            + "\n\nVermeide Wiederholungen. Baue auf den vorherigen Abschnitten auf."
+        )
+
     prompt = f"""{section_prompt}
 
 DATENKONTEXT:
-{data_context}
+{focused_context}
+{prev_summary}
 
 Schreibe auf Deutsch. Verwende klare Ueberschriften und konkrete Zahlen."""
 
@@ -143,12 +209,22 @@ def build_data_context(app_state, match_result=None, tagged_data=None,
             tag_counts = Counter(t.get("human_override") or t["tag"] for t in tags)
             total = len(tags)
             parts.append(f"  Antworten gesamt: {total}")
+
+            # Category distribution
             for tag, count in tag_counts.most_common():
                 pct = round(count / total * 100, 1)
-                parts.append(f"  {tag}: {count} ({pct}%)")
-            # Top 5 representative quotes
-            for t in tags[:5]:
-                final_tag = t.get("human_override") or t["tag"]
-                parts.append(f"  Zitat ({final_tag}): \"{t['text'][:120]}\"")
+                parts.append(f"  Kategorie: {tag}: {count} Nennungen ({pct}%)")
+
+            # Representative quotes per top category (2 per category, top 5 categories)
+            tags_by_cat = {}
+            for t in tags:
+                cat = t.get("human_override") or t.get("tag", "?")
+                tags_by_cat.setdefault(cat, []).append(t.get("text", ""))
+
+            parts.append("  Beispielzitate:")
+            for cat, _ in tag_counts.most_common(5):
+                examples = tags_by_cat.get(cat, [])[:2]
+                for ex in examples:
+                    parts.append(f"    [{cat}]: \"{ex[:150]}\"")
 
     return "\n".join(parts)

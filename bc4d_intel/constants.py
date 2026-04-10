@@ -67,11 +67,10 @@ def current_theme() -> str:
 NAV_ITEMS = [
     ("Import",       "import",      "\U0001F4C2"),  # folder
     ("Dashboard",    "dashboard",   "\U0001F4CA"),  # chart
-    ("Reliability",  "reliability", "\U0001F50D"),  # magnifier
     ("AI Analysis",  "analysis",    "\U0001F916"),  # robot
-    ("Clusters",     "clusters",    "\U0001F3AF"),  # target
+    ("Categories",   "clusters",    "\U0001F3AF"),  # target
+    ("Insights",     "insights",    "\U0001F4C8"),  # chart
     ("Responses",    "responses",   "\U0001F4DD"),  # memo
-    ("Insights",     "insights",    "\U0001F4C8"),  # chart up
     ("Report",       "report",      "\U0001F4C4"),  # document
     ("Settings",     "settings",    "\u2699"),       # gear
 ]

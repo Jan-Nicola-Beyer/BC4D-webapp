@@ -5,7 +5,7 @@ Persists to sessions/latest.bc4d as JSON after every major action.
 """
 
 from __future__ import annotations
-import json, os, logging
+import json, os, logging, threading
 from dataclasses import dataclass, field, asdict
 from typing import Optional, List, Dict, Any
 
@@ -65,20 +65,23 @@ class AppState:
     # ── Crash log ──
     last_error: str = ""
 
+    _save_lock = threading.Lock()
+
     def save(self, path: str = ""):
-        """Persist state to JSON file. Returns True on success."""
+        """Persist state to JSON file. Thread-safe. Returns True on success."""
         if not path:
             path = os.path.join(SESSION_DIR, "latest.bc4d")
-        try:
-            data = asdict(self)
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2, default=str)
-            log.info("Session saved to %s", path)
-            return True
-        except Exception as e:
-            self.last_error = f"Save failed: {e}"
-            log.error("CRITICAL: Failed to save session: %s", e)
-            return False
+        with self._save_lock:
+            try:
+                data = asdict(self)
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+                log.info("Session saved to %s", path)
+                return True
+            except Exception as e:
+                self.last_error = f"Save failed: {e}"
+                log.error("CRITICAL: Failed to save session: %s", e)
+                return False
 
     @classmethod
     def load(cls, path: str = "") -> "AppState":

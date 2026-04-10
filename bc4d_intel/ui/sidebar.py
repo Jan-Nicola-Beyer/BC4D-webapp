@@ -33,18 +33,23 @@ class Sidebar(ctk.CTkFrame):
 
         ctk.CTkFrame(self, fg_color=C.BORDER, height=1).pack(fill="x", padx=14, pady=10)
 
+        # Screens that require AI Analysis to have been run
+        self._locked = {"clusters", "insights", "responses"}
+
         # ── Nav buttons ──
         for label, key, icon in C.NAV_ITEMS:
+            is_locked = key in self._locked
             btn = ctk.CTkButton(
                 self,
                 text=f"{icon}   {label}",
                 anchor="w",
                 fg_color="transparent",
-                hover_color=C.SELECT,
-                text_color=C.TEXT,
+                hover_color=C.DIM if is_locked else C.SELECT,
+                text_color=C.MUTED if is_locked else C.TEXT,
                 font=ctk.CTkFont(family="Segoe UI", size=13),
                 height=40, corner_radius=6,
                 command=lambda k=key: self.app.show_frame(k),
+                state="disabled" if is_locked else "normal",
             )
             btn.pack(fill="x", padx=10, pady=2)
             self._buttons[key] = btn
@@ -70,8 +75,18 @@ class Sidebar(ctk.CTkFrame):
         self._theme_btn.pack(fill="x", padx=10, pady=(2, 14))
         tip(self._theme_btn, "Toggle dark / light theme")
 
+    def unlock_analysis_screens(self):
+        """Enable Clusters and Responses buttons after AI Analysis completes."""
+        for key in self._locked:
+            if key in self._buttons:
+                self._buttons[key].configure(
+                    state="normal", text_color=C.TEXT,
+                    hover_color=C.SELECT)
+
     def set_active(self, key: str):
         for k, btn in self._buttons.items():
+            if k in self._locked and btn.cget("state") == "disabled":
+                continue  # don't highlight locked buttons
             btn.configure(fg_color=C.ACCENT if k == key else "transparent")
 
     def rebuild(self):

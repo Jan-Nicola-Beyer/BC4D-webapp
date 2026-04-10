@@ -9,13 +9,15 @@ from bc4d_intel import constants as C
 
 
 def workflow_steps(parent, current_step: int = 0) -> ctk.CTkFrame:
-    """Show a horizontal step indicator: Import → Dashboard → Validation → Report.
+    """Show a horizontal step indicator matching the actual nav order.
 
     Args:
-        current_step: 0=Import, 1=Dashboard, 2=Validation, 3=Report
+        current_step: 0=Import, 1=Dashboard, 2=AI Analysis,
+                      3=Clusters, 4=Responses, 5=Report
     """
     frame = ctk.CTkFrame(parent, fg_color="transparent", height=30)
-    steps = ["1. Import", "2. Dashboard", "3. Validation", "4. Report"]
+    steps = ["1. Import", "2. Dashboard", "3. AI Analysis",
+             "4. Clusters", "5. Responses", "6. Report"]
 
     for i, label in enumerate(steps):
         if i < current_step:
@@ -52,7 +54,14 @@ def info_banner(parent, title: str, body: str, icon: str = "\u2139",
         icon: Unicode icon
         color: Background color (default: blue tint)
     """
-    bg = color or "#1e293b"
+    is_dark = C.current_theme() == "dark"
+    if color:
+        bg = color
+    else:
+        bg = "#1e293b" if is_dark else "#e8f0fe"
+    title_color = "#f1f5f9" if is_dark else "#1e3a5f"
+    body_color = "#e2e8f0" if is_dark else "#374151"
+
     frame = ctk.CTkFrame(parent, fg_color=bg, corner_radius=8)
 
     inner = ctk.CTkFrame(frame, fg_color="transparent")
@@ -61,13 +70,13 @@ def info_banner(parent, title: str, body: str, icon: str = "\u2139",
     ctk.CTkLabel(
         inner, text=f"{icon} {title}",
         font=ctk.CTkFont(family="Segoe UI", size=14, weight="bold"),
-        text_color="#f1f5f9",
+        text_color=title_color,
     ).pack(anchor="w", pady=(0, 6))
 
     ctk.CTkLabel(
         inner, text=body,
         font=ctk.CTkFont(family="Segoe UI", size=11),
-        text_color="#e2e8f0", wraplength=450, justify="left",
+        text_color=body_color, wraplength=700, justify="left",
     ).pack(anchor="w")
 
     return frame

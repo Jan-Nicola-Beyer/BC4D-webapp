@@ -35,18 +35,46 @@ def _ensure_mpl():
 
 
 def _apply_style(fig, ax):
-    """Apply consistent dark-mode-friendly style with readable font sizes."""
-    fig.patch.set_facecolor("#0d1117")
-    ax.set_facecolor("#161b22")
-    ax.tick_params(colors="#9ca3af", labelsize=11)
-    ax.xaxis.label.set_color("#9ca3af")
+    """Apply theme-aware chart style. Reads current theme from constants."""
+    from bc4d_intel import constants as C
+    is_dark = C.current_theme() == "dark"
+
+    if is_dark:
+        fig_bg, ax_bg = "#0d1117", "#161b22"
+        tick_color, label_color = "#9ca3af", "#9ca3af"
+        title_color, spine_color = "#e6edf3", "#30363d"
+    else:
+        fig_bg, ax_bg = "#ffffff", "#f9fafb"
+        tick_color, label_color = "#4b5563", "#4b5563"
+        title_color, spine_color = "#1f2937", "#d1d5db"
+
+    fig.patch.set_facecolor(fig_bg)
+    ax.set_facecolor(ax_bg)
+    ax.tick_params(colors=tick_color, labelsize=11)
+    ax.xaxis.label.set_color(label_color)
     ax.xaxis.label.set_fontsize(11)
-    ax.yaxis.label.set_color("#9ca3af")
+    ax.yaxis.label.set_color(label_color)
     ax.yaxis.label.set_fontsize(11)
-    ax.title.set_color("#e6edf3")
+    ax.title.set_color(title_color)
     ax.title.set_fontsize(14)
     for spine in ax.spines.values():
-        spine.set_color("#30363d")
+        spine.set_color(spine_color)
+
+
+def _chart_colors():
+    """Return theme-aware colors for chart elements."""
+    from bc4d_intel import constants as C
+    is_dark = C.current_theme() == "dark"
+    if is_dark:
+        return {
+            "edge": "#0d1117", "legend_bg": "#161b22", "legend_border": "#30363d",
+            "legend_text": "#9ca3af", "text": "#e6edf3", "muted": "#9ca3af",
+        }
+    else:
+        return {
+            "edge": "#ffffff", "legend_bg": "#f3f4f6", "legend_border": "#d1d5db",
+            "legend_text": "#4b5563", "text": "#1f2937", "muted": "#6b7280",
+        }
 
 
 LIKERT_COLORS = ["#dc2626", "#f97316", "#facc15", "#84cc16", "#22c55e"]
@@ -59,6 +87,7 @@ def likert_stacked_bar(items: List[Dict], title: str = "Likert Scale Distributio
     Args:
         items: list of {label, stats: {distribution: {1:n, 2:n, ...}, n}}
     """
+    cc = _chart_colors()
     _ensure_mpl()
     import matplotlib.pyplot as plt
 
@@ -85,14 +114,14 @@ def likert_stacked_bar(items: List[Dict], title: str = "Likert Scale Distributio
 
         ax.barh(y_pos, widths, left=lefts, height=0.6,
                 color=LIKERT_COLORS[val - 1], label=LIKERT_LABELS[val - 1],
-                edgecolor="#0d1117", linewidth=0.5)
+                edgecolor=cc["edge"], linewidth=0.5)
 
     ax.set_yticks(y_pos)
     ax.set_yticklabels(labels, fontsize=10)
-    ax.set_xlabel("Percentage (%)", fontsize=11)
+    ax.set_xlabel("Anteil (%)", fontsize=11)
     ax.set_title(title, fontsize=14, fontweight="bold", pad=12)
-    ax.legend(loc="upper right", fontsize=10, facecolor="#161b22", edgecolor="#30363d",
-              labelcolor="#9ca3af")
+    ax.legend(loc="upper right", fontsize=10, facecolor=cc["legend_bg"], edgecolor=cc["legend_border"],
+              labelcolor=cc["legend_text"])
     ax.invert_yaxis()
 
     # Add mean + n labels on right
@@ -100,7 +129,7 @@ def likert_stacked_bar(items: List[Dict], title: str = "Likert Scale Distributio
         mean = item["stats"].get("mean")
         n = item["stats"].get("n", 0)
         if mean:
-            ax.text(102, i, f"M={mean} (n={n})", va="center", fontsize=10, color="#e6edf3")
+            ax.text(102, i, f"M={mean} (n={n})", va="center", fontsize=10, color=cc["text"])
 
     fig.tight_layout()
     return fig
@@ -108,6 +137,7 @@ def likert_stacked_bar(items: List[Dict], title: str = "Likert Scale Distributio
 
 def pre_post_grouped_bar(comparisons: List[Dict], title: str = "Pre/Post Comparison"):
     """Grouped bar chart comparing pre and post means for matched items."""
+    cc = _chart_colors()
     _ensure_mpl()
     import matplotlib.pyplot as plt
 
@@ -127,16 +157,16 @@ def pre_post_grouped_bar(comparisons: List[Dict], title: str = "Pre/Post Compari
     post_means = [c["comparison"]["post_mean"] for c in valid]
 
     ax.barh(y - height / 2, pre_means, height, label="Pre",
-            color="#6366f1", edgecolor="#0d1117")
+            color="#6366f1", edgecolor=cc["edge"])
     ax.barh(y + height / 2, post_means, height, label="Post",
-            color="#22c55e", edgecolor="#0d1117")
+            color="#22c55e", edgecolor=cc["edge"])
 
     ax.set_yticks(y)
     ax.set_yticklabels(labels, fontsize=10)
-    ax.set_xlabel("Mean (1-5)", fontsize=11)
+    ax.set_xlabel("Mittelwert (1-5)", fontsize=11)
     ax.set_xlim(0, 5.8)
     ax.set_title(title, fontsize=14, fontweight="bold", pad=12)
-    ax.legend(fontsize=11, facecolor="#161b22", edgecolor="#30363d", labelcolor="#9ca3af")
+    ax.legend(fontsize=11, facecolor=cc["legend_bg"], edgecolor=cc["legend_border"], labelcolor=cc["legend_text"])
     ax.invert_yaxis()
 
     # Add change indicators with effect size
@@ -154,6 +184,7 @@ def pre_post_grouped_bar(comparisons: List[Dict], title: str = "Pre/Post Compari
 
 def change_histogram(comparisons: List[Dict], title: str = "Distribution of Change"):
     """Bar chart showing % improved / unchanged / declined per item."""
+    cc = _chart_colors()
     _ensure_mpl()
     import matplotlib.pyplot as plt
 
@@ -180,9 +211,9 @@ def change_histogram(comparisons: List[Dict], title: str = "Distribution of Chan
 
     ax.set_yticks(y)
     ax.set_yticklabels(labels, fontsize=10)
-    ax.set_xlabel("Percentage (%)", fontsize=11)
+    ax.set_xlabel("Anteil (%)", fontsize=11)
     ax.set_title(title, fontsize=14, fontweight="bold", pad=12)
-    ax.legend(fontsize=11, facecolor="#161b22", edgecolor="#30363d", labelcolor="#9ca3af")
+    ax.legend(fontsize=11, facecolor=cc["legend_bg"], edgecolor=cc["legend_border"], labelcolor=cc["legend_text"])
     ax.invert_yaxis()
 
     fig.tight_layout()
@@ -191,6 +222,7 @@ def change_histogram(comparisons: List[Dict], title: str = "Distribution of Chan
 
 def demographic_pie(series: pd.Series, title: str = "Demographics"):
     """Pie/donut chart for demographic distribution."""
+    cc = _chart_colors()
     _ensure_mpl()
     import matplotlib.pyplot as plt
 
@@ -199,7 +231,7 @@ def demographic_pie(series: pd.Series, title: str = "Demographics"):
         return _empty_chart("No demographic data")
 
     fig, ax = plt.subplots(figsize=(6, 5))
-    fig.patch.set_facecolor("#0d1117")
+    _apply_style(fig, ax)
 
     colors = ["#C8175D", "#0077B6", "#059669", "#d97706", "#6366f1",
               "#ec4899", "#14b8a6", "#f59e0b"]
@@ -210,21 +242,22 @@ def demographic_pie(series: pd.Series, title: str = "Demographics"):
     wedges, texts, autotexts = ax.pie(
         counts.values, labels=pie_labels, autopct="%1.0f%%",
         colors=colors[:len(counts)], startangle=90,
-        wedgeprops=dict(width=0.65, edgecolor="#0d1117"),
-        textprops=dict(color="#e6edf3", fontsize=11),
+        wedgeprops=dict(width=0.65, edgecolor=cc["edge"]),
+        textprops=dict(color=cc["text"], fontsize=11),
     )
     for t in autotexts:
         t.set_fontsize(10)
         t.set_color("#ffffff")
         t.set_fontweight("bold")
 
-    ax.set_title(title, fontsize=14, fontweight="bold", color="#e6edf3", pad=12)
+    ax.set_title(title, fontsize=14, fontweight="bold", color=cc["text"], pad=12)
     fig.tight_layout()
     return fig
 
 
 def _empty_chart(message: str):
     """Return a placeholder chart with a message."""
+    cc = _chart_colors()
     _ensure_mpl()
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(6, 3))

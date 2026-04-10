@@ -279,3 +279,14 @@ def analyze_matched_likert(
             })
 
     return results
+
+
+def analyze_demographics(df: pd.DataFrame, roles: Dict[str, str]) -> List[Dict]:
+    """Analyze all demographic columns in a DataFrame."""
+    results = []
+    for col, role in roles.items():
+        if role == "demographic":
+            stats = frequency_stats(df[col])
+            label = col[:60] if len(col) <= 60 else col[:57] + "..."
+            results.append({"column": col, "label": label, "role": role, "stats": stats})
+    return results

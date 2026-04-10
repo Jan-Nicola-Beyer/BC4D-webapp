@@ -28,10 +28,13 @@ def call_claude(
         api_key: Anthropic API key
         stream_cb: Optional callback for streaming tokens
     """
-    import anthropic
+    import anthropic, httpx
 
     model = C.AI_MODELS.get(task, C.AI_MODELS["tagging"])
-    client = anthropic.Anthropic(api_key=api_key)
+    client = anthropic.Anthropic(
+        api_key=api_key,
+        timeout=httpx.Timeout(120.0, connect=10.0),
+    )
 
     max_retries = 3
     for attempt in range(max_retries):

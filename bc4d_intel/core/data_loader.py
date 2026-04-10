@@ -153,14 +153,19 @@ def detect_column_roles(df: pd.DataFrame) -> Dict[str, str]:
                 continue
 
         # Free text: long strings, many unique values
-        if series.dtype == object:
+        # Check dtype broadly — object, string, or any non-numeric type
+        is_text_dtype = (series.dtype == object or
+                         str(series.dtype) in ("string", "String") or
+                         not hasattr(series.dtype, 'kind') or
+                         series.dtype.kind in ('O', 'U', 'S'))
+        if is_text_dtype:
             avg_len = series.dropna().astype(str).str.len().mean()
             if avg_len > 30 and n_unique > 10:
                 roles[col] = "free_text"
                 continue
 
         # Default: check if it looks like a categorical with few values
-        if n_unique <= 6 and series.dtype == object:
+        if n_unique <= 6 and is_text_dtype:
             roles[col] = "categorical"
             continue
 

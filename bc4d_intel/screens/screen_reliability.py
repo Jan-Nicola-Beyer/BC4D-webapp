@@ -71,19 +71,19 @@ class ReliabilityScreen(ctk.CTkFrame):
                      text_color=C.TEXT).pack(anchor="w")
 
         # Question selector
-        q_row = ctk.CTkFrame(test_inner, fg_color="transparent")
-        q_row.pack(fill="x", pady=(8, 4))
-
-        ctk.CTkLabel(q_row, text="Question:",
-                     font=ctk.CTkFont(size=11), text_color=C.MUTED).pack(side="left", padx=(0, 8))
+        ctk.CTkLabel(test_inner, text="Question:",
+                     font=ctk.CTkFont(size=11), text_color=C.MUTED
+                     ).pack(anchor="w", pady=(8, 2))
         self._question_var = ctk.StringVar(value="Select a question...")
-        self._question_menu = ctk.CTkOptionMenu(
-            q_row, variable=self._question_var,
+        self._question_menu = ctk.CTkComboBox(
+            test_inner, variable=self._question_var,
             values=["(run AI Analysis first to populate)"],
-            font=ctk.CTkFont(size=11), fg_color=C.BTN, button_color=C.DIM,
-            height=30, width=400, corner_radius=6,
+            font=ctk.CTkFont(size=11), fg_color=C.ENTRY_BG,
+            border_color=C.ENTRY_BORDER, button_color=C.DIM,
+            dropdown_font=ctk.CTkFont(size=11),
+            height=32, corner_radius=6, state="readonly",
         )
-        self._question_menu.pack(side="left")
+        self._question_menu.pack(fill="x", pady=(0, 4))
 
         # Test input
         input_row = ctk.CTkFrame(test_inner, fg_color="transparent")
@@ -101,6 +101,7 @@ class ReliabilityScreen(ctk.CTkFrame):
                         command=self._test_response).pack(side="right")
 
         # Result area
+        self._result_parent = test_inner
         self._result_frame = ctk.CTkFrame(test_inner, fg_color="transparent")
         self._result_frame.pack(fill="x", pady=(8, 0))
 
@@ -112,7 +113,8 @@ class ReliabilityScreen(ctk.CTkFrame):
             self._stats_lbl.configure(
                 text=f"Cached answers: {stats['total_answers']}\n"
                      f"Questions covered: {stats['questions']}\n"
-                     f"Staffels learned: {stats['staffels']}",
+                     f"Staffels learned: {stats['staffels']}\n"
+                     f"Taxonomies cached: {stats.get('taxonomies', 0)}",
                 text_color=C.TEXT)
         except Exception:
             self._stats_lbl.configure(text="Cache not yet built. Run AI Analysis first.",
@@ -133,58 +135,66 @@ class ReliabilityScreen(ctk.CTkFrame):
         if question in ("Select a question...", "(run AI Analysis first to populate)"):
             return
 
-        # Clear previous result
-        for w in self._result_frame.winfo_children():
-            w.destroy()
+        # Destroy and recreate the result frame to ensure clean slate
+        self._result_frame.destroy()
+        self._result_frame = ctk.CTkFrame(
+            self._result_parent, fg_color="transparent")
+        self._result_frame.pack(fill="x", pady=(8, 0))
 
         try:
             from bc4d_intel.core.answer_cache import test_reliability
 
-            result = test_reliability(question, text)
+            api_key = self.app.app_state.api_key
+            result = test_reliability(question, text, api_key=api_key)
 
-            if result.get("matched"):
-                # Cache hit — show green
-                card = ctk.CTkFrame(self._result_frame, fg_color=C.SUCCESS, corner_radius=8)
+            matched = result.get("matched", False)
+            method = result.get("method", "none")
+
+            if matched:
+                color = C.SUCCESS
+                if method == "dedup":
+                    title = "EXACT MATCH (free, from cache)"
+                else:
+                    title = "LLM CLASSIFIED (Haiku)"
+
+                card = ctk.CTkFrame(self._result_frame, fg_color=color, corner_radius=8)
                 card.pack(fill="x", pady=4)
                 card_inner = ctk.CTkFrame(card, fg_color="transparent")
                 card_inner.pack(fill="x", padx=14, pady=10)
 
-                ctk.CTkLabel(card_inner, text="CACHE HIT (free classification)",
+                ctk.CTkLabel(card_inner, text=title,
                              font=ctk.CTkFont(size=14, weight="bold"),
                              text_color="#ffffff").pack(anchor="w")
 
+                lines = [
+                    f"Category: {result.get('main_category', '')} > "
+                    f"{result.get('cluster_title', '')}",
+                ]
+                if result.get("confidence"):
+                    lines.append(f"Confidence: {result['confidence']}")
+                if result.get("cache_match"):
+                    lines.append(f"Matched to: \"{result['cache_match'][:80]}\"")
+                lines.append(result.get("reason", ""))
+
                 ctk.CTkLabel(card_inner,
-                    text=f"Category: {result['main_category']} > {result['cluster_title']}\n"
-                         f"Similarity: {result['score']:.1%} (threshold: {result['threshold']:.0%})\n"
-                         f"Matched to: \"{result['cache_match'][:80]}\"\n"
-                         f"Cache size: {result['n_cached']} answers",
+                    text="\n".join(lines),
                     font=ctk.CTkFont(size=11),
                     text_color="#e0e0e0", justify="left").pack(anchor="w", pady=(4, 0))
 
             else:
-                # Cache miss — show amber
                 card = ctk.CTkFrame(self._result_frame, fg_color=C.WARN, corner_radius=8)
                 card.pack(fill="x", pady=4)
                 card_inner = ctk.CTkFrame(card, fg_color="transparent")
                 card_inner.pack(fill="x", padx=14, pady=10)
 
-                ctk.CTkLabel(card_inner, text="CACHE MISS (AI needed)",
+                ctk.CTkLabel(card_inner, text="NOT CLASSIFIED",
                              font=ctk.CTkFont(size=14, weight="bold"),
                              text_color="#ffffff").pack(anchor="w")
 
-                reason = result.get("reason", "")
-                if result.get("score"):
-                    ctk.CTkLabel(card_inner,
-                        text=f"Best match similarity: {result['score']:.1%} "
-                             f"(below threshold: {result.get('threshold', 0.9):.0%})\n"
-                             f"Closest cached: \"{result.get('cache_match', 'N/A')[:80]}\"\n"
-                             f"This response would need AI classification (~$0.001)",
-                        font=ctk.CTkFont(size=11),
-                        text_color="#e0e0e0", justify="left").pack(anchor="w", pady=(4, 0))
-                elif reason:
-                    ctk.CTkLabel(card_inner, text=reason,
-                                 font=ctk.CTkFont(size=11),
-                                 text_color="#e0e0e0").pack(anchor="w", pady=(4, 0))
+                ctk.CTkLabel(card_inner,
+                    text=result.get("reason", "Could not classify this response."),
+                    font=ctk.CTkFont(size=11),
+                    text_color="#e0e0e0", justify="left").pack(anchor="w", pady=(4, 0))
 
         except Exception as e:
             ctk.CTkLabel(self._result_frame, text=f"Error: {e}",

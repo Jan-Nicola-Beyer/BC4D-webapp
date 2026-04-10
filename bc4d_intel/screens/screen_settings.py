@@ -76,10 +76,11 @@ class SettingsScreen(ctk.CTkFrame):
                          text_color=C.MUTED).pack(side="left", padx=4)
 
         W.muted_label(model_inner,
-            "\nEstimated cost per staffel:\n"
-            "  Tagging (~700 responses): $0.05-0.15\n"
-            "  Report (7 sections): $0.15-0.40\n"
-            "  Total: $0.20-0.55"
+            "\nEstimated cost per training cohort:\n"
+            "  Categorising open-ended responses: ~$0.10 per 100 responses\n"
+            "  Generating the evaluation report: ~$0.25\n"
+            "  First-time category design: ~$0.03 per question (one-time)\n"
+            "  Typical total: $0.30-0.60 per cohort"
         ).pack(anchor="w", pady=(8, 0))
 
         # ── Session Info ──
