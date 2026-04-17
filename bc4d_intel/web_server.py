@@ -5,12 +5,41 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, JSONResponse, StreamingResponse, FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
 from bc4d_intel.app_state import AppState
 from bc4d_intel.core.data_loader import load_survey
 from bc4d_intel.core.panel_matcher import match_panels
 from bc4d_intel.constants import SESSION_DIR
+
+
+class ReassignRequest(BaseModel):
+    question: str
+    response_index: int
+    new_cluster_id: str
+    new_cluster_title: str
+    new_main_category: str
+
+
+class AddCategoryRequest(BaseModel):
+    question: str
+    main_category: str
+    sub_category: str
+
+
+class RenameClusterRequest(BaseModel):
+    question: str
+    cluster_id: str
+    new_title: str
+
+
+class GenerateReportRequest(BaseModel):
+    sections: List[str]
+
+
+class ExportPayload(BaseModel):
+    sections: Optional[dict] = None
+
 
 app = FastAPI(title="BC4D Intel Web App")
 
@@ -897,25 +926,6 @@ async def generate_section_endpoint(section_key: str):
     return StreamingResponse(stream(), media_type="text/plain")
 
 
-class GenerateReportRequest(BaseModel):
-    sections: List[str]
-
-class ReassignRequest(BaseModel):
-    question: str
-    response_index: int
-    new_cluster_id: str
-    new_cluster_title: str
-    new_main_category: str
-
-class AddCategoryRequest(BaseModel):
-    question: str
-    main_category: str
-    sub_category: str
-
-class RenameClusterRequest(BaseModel):
-    question: str
-    cluster_id: str
-    new_title: str
 
 
 @app.post("/api/report/export")

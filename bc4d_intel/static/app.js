@@ -200,12 +200,28 @@ async function api(url, opts = {}) {
 /* ── 4. NAVIGATION ──────────────────────────────────────────────────────── */
 let _currentPage = 'import';
 
+function switchBackgroundVideo(bgId) {
+    if (!bgId) return;
+    $$('.bg-video').forEach(v => {
+        v.classList.remove('bg-video-active');
+        if (v.id !== bgId) v.classList.add('bg-video-hidden');
+    });
+    const next = document.getElementById(bgId);
+    if (next) {
+        next.classList.remove('bg-video-hidden');
+        next.classList.add('bg-video-active');
+    }
+}
+
 function navigateTo(targetPage) {
     if (targetPage === _currentPage) return;
     _currentPage = targetPage;
 
     $$('.page').forEach(p => p.classList.remove('active'));
     $$('.nav-links a').forEach(a => a.classList.toggle('active', a.dataset.page === targetPage));
+
+    const navLink = $(`.nav-links a[data-page="${targetPage}"]`);
+    if (navLink) switchBackgroundVideo(navLink.dataset.bg);
 
     const page = $(`#page-${targetPage}`);
     if (!page) return;
@@ -373,7 +389,7 @@ async function runMatching() {
         updateCounterTargets(data);
         animateCounters();
     } catch(e) {
-        status.style.color = '#fca5a5'; status.textContent = `Error: ${e.message}`;
+        status.style.color = '#b91c1c'; status.textContent = `Error: ${e.message}`;
         btn.disabled = false;
     } finally { loader.classList.remove('visible'); }
 }
@@ -386,7 +402,7 @@ async function loadDemoData() {
         const data = await api('/api/demo/load', { method: 'POST' });
         _appData = { ..._appData, ...data, has_match_result: true, has_results: true,
                      n_matched: data.matched_pairs, match_rate_pct: 85.5, n_unmatched_pre: 174, n_unmatched_post: 22 };
-        if (status) { status.style.color = '#6ee7b7'; status.textContent = 'Demo loaded ✓ — go to Dashboard to see all charts'; }
+        if (status) { status.style.color = '#15803d'; status.textContent = 'Demo loaded ✓ — go to Dashboard to see all charts'; }
         showMatchResultCard(_appData);
         updateCounterTargets(_appData);
         animateCounters();
@@ -405,7 +421,7 @@ async function loadDemoData() {
         }).catch(e => console.warn('Pre-fetch dashboard:', e.message));
         setTimeout(() => { if(status) status.textContent=''; }, 5000);
     } catch(e) {
-        if (status) { status.style.color = '#fca5a5'; status.textContent = `Error: ${e.message}`; }
+        if (status) { status.style.color = '#b91c1c'; status.textContent = `Error: ${e.message}`; }
     } finally {
         if (btn) { btn.disabled = false; btn.textContent = 'Load Demo Data'; }
     }
@@ -491,10 +507,10 @@ function drawMatchChart(data) {
                 label: 'Respondents',
                 data: [n_pre, n_post, n_match, n_u_pre, n_u_post],
                 backgroundColor: [
-                    'rgba(61,168,244,0.55)', 'rgba(123,224,212,0.55)',
-                    'rgba(200,23,93,0.65)', 'rgba(217,119,6,0.45)', 'rgba(220,38,38,0.35)',
+                    'rgba(0,104,178,0.55)', 'rgba(231,104,99,0.55)',
+                    'rgba(199,7,77,0.65)', 'rgba(217,119,6,0.45)', 'rgba(220,38,38,0.35)',
                 ],
-                borderColor: ['#3da8f4', '#7be0d4', '#C8175D', '#d97706', '#dc2626'],
+                borderColor: ['#0068B2', '#E76863', '#C7074D', '#d97706', '#dc2626'],
                 borderWidth: 1.5,
                 borderRadius: 8,
             }],
@@ -506,14 +522,14 @@ function drawMatchChart(data) {
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    backgroundColor: 'rgba(5,11,23,0.94)',
-                    borderColor: 'rgba(46,91,255,0.3)', borderWidth: 1,
-                    titleColor: '#f0f6ff', bodyColor: 'rgba(180,200,230,0.7)', padding: 12,
+                    backgroundColor: 'rgba(255,255,255,0.95)',
+                    borderColor: 'rgba(0,104,178,0.2)', borderWidth: 1,
+                    titleColor: '#111827', bodyColor: '#4b5563', padding: 12,
                 },
             },
             scales: {
-                x: { grid: { color: 'rgba(46,91,255,0.07)' }, ticks: { color: 'rgba(180,200,230,0.65)', font: { family: "'Space Grotesk'" } } },
-                y: { grid: { color: 'rgba(46,91,255,0.07)' }, ticks: { color: 'rgba(180,200,230,0.65)', font: { family: "'Space Grotesk'" } } },
+                x: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#4b5563', font: { family: "'Inter'" } } },
+                y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#4b5563', font: { family: "'Inter'" } } },
             },
         },
     });
@@ -630,16 +646,16 @@ function buildDistributionChart(canvasId, items, key) {
                 datasets: [{
                     label: 'Mean',
                     data: means,
-                    backgroundColor: 'rgba(61,168,244,0.55)',
-                    borderColor: '#3da8f4',
+                    backgroundColor: 'rgba(0,104,178,0.55)',
+                    borderColor: '#0068B2',
                     borderWidth: 1.5,
                     borderRadius: 6,
                     yAxisID: 'y',
                 }, {
                     label: 'SD',
                     data: sds,
-                    backgroundColor: 'rgba(200,23,93,0.35)',
-                    borderColor: '#C8175D',
+                    backgroundColor: 'rgba(199,7,77,0.35)',
+                    borderColor: '#C7074D',
                     borderWidth: 1.5,
                     borderRadius: 4,
                     yAxisID: 'y',
@@ -650,12 +666,12 @@ function buildDistributionChart(canvasId, items, key) {
                 indexAxis: 'y',
                 animation: { duration: 1000, easing: 'easeOutQuart', delay: ctx => ctx.dataIndex * 40 },
                 plugins: {
-                    legend: { labels: { color: 'rgba(180,200,230,0.7)', font: { family: "'Space Grotesk'" } } },
-                    tooltip: { backgroundColor: 'rgba(5,11,23,0.94)', titleColor: '#f0f6ff', bodyColor: 'rgba(180,200,230,0.7)', padding: 10 },
+                    legend: { labels: { color: '#4b5563', font: { family: "'Inter'" } } },
+                    tooltip: { backgroundColor: 'rgba(255,255,255,0.95)', titleColor: '#111827', bodyColor: '#4b5563', borderColor: 'rgba(0,104,178,0.2)', borderWidth: 1, padding: 10 },
                 },
                 scales: {
-                    x: { min: 0, max: 5, grid: { color: 'rgba(46,91,255,0.07)' }, ticks: { color: 'rgba(180,200,230,0.6)' } },
-                    y: { grid: { color: 'rgba(46,91,255,0.07)' }, ticks: { color: 'rgba(180,200,230,0.6)', font: { size: 10 } } },
+                    x: { min: 0, max: 5, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#4b5563' } },
+                    y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#4b5563', font: { size: 10 } } },
                 },
             },
         });
@@ -666,7 +682,7 @@ function buildMatchedSection(comparisons) {
     const rows = comparisons.map(c => {
         const comp = c.comparison;
         const ch = comp.mean_change;
-        const color = ch > 0.1 ? '#6ee7b7' : ch < -0.1 ? '#fca5a5' : 'var(--text-muted)';
+        const color = ch > 0.1 ? '#15803d' : ch < -0.1 ? '#b91c1c' : 'var(--text-muted)';
         const arrow = ch > 0.1 ? '▲' : ch < -0.1 ? '▼' : '→';
         return `<tr>
             <td style="font-size:0.85rem;max-width:240px;padding:0.5rem 0.75rem;">${c.label}</td>
@@ -711,7 +727,7 @@ function buildWaterfallChart(canvasId, comparisons) {
         if (window._tabCharts['matched']) { window._tabCharts['matched'].destroy(); }
         const labels  = comparisons.map(c => c.label.substring(0, 30) + '…');
         const changes  = comparisons.map(c => c.comparison.mean_change ?? 0);
-        const bgColors = changes.map(v => v > 0 ? 'rgba(5,150,105,0.6)' : v < 0 ? 'rgba(220,38,38,0.5)' : 'rgba(100,100,100,0.4)');
+        const bgColors = changes.map(v => v > 0 ? 'rgba(22,163,74,0.55)' : v < 0 ? 'rgba(199,7,77,0.55)' : 'rgba(107,114,128,0.4)');
 
         window._tabCharts['matched'] = new Chart(ctx, {
             type: 'bar',
@@ -724,11 +740,11 @@ function buildWaterfallChart(canvasId, comparisons) {
                 animation: { duration: 900, delay: ctx => ctx.dataIndex * 50 },
                 plugins: {
                     legend: { display: false },
-                    tooltip: { backgroundColor: 'rgba(5,11,23,0.94)', titleColor: '#f0f6ff', bodyColor: 'rgba(180,200,230,0.7)', padding: 10 },
+                    tooltip: { backgroundColor: 'rgba(255,255,255,0.95)', titleColor: '#111827', bodyColor: '#4b5563', borderColor: 'rgba(0,104,178,0.2)', borderWidth: 1, padding: 10 },
                 },
                 scales: {
-                    x: { grid: { color: 'rgba(46,91,255,0.07)' }, ticks: { color: 'rgba(180,200,230,0.6)' } },
-                    y: { grid: {display:false}, ticks: { color: 'rgba(180,200,230,0.6)', font: { size: 9 } } },
+                    x: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#4b5563' } },
+                    y: { grid: {display:false}, ticks: { color: '#4b5563', font: { size: 9 } } },
                 },
             },
         });
@@ -792,12 +808,12 @@ function buildDemographicsSection(demographics, key) {
 }
 
 function drawDemographicCharts(demographics, key) {
-    const palette = ['#3da8f4','#7be0d4','#C8175D','#d97706','#6366f1','#ec4899','#14b8a6','#a855f7'];
+    const palette = ['#0068B2','#E76863','#C7074D','#4C4193','#d97706','#16a34a','#6366f1','#14b8a6'];
     demographics.forEach((d, i) => {
         const chartId = `${key}-demo-${i}`;
         const ctx = $(`#${chartId}`);
         if (!ctx) return;
-        
+
         const cats = Object.entries(d.stats.percentages).sort((a, b) => b[1] - a[1]);
         const labels = cats.map(c => c[0].substring(0, 25));
         const dataVals = cats.map(c => c[1]);
@@ -807,13 +823,13 @@ function drawDemographicCharts(demographics, key) {
             type: 'doughnut',
             data: {
                 labels,
-                datasets: [{ data: dataVals, backgroundColor: palette, borderWidth: 2, borderColor: 'rgba(3,7,15,0.8)' }],
+                datasets: [{ data: dataVals, backgroundColor: palette, borderWidth: 2, borderColor: '#ffffff' }],
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
                 plugins: {
                     legend: { display: false },
-                    tooltip: { backgroundColor:'rgba(5,11,23,0.94)', titleColor:'#f0f6ff', bodyColor:'rgba(180,200,230,0.7)', padding:10 },
+                    tooltip: { backgroundColor:'rgba(255,255,255,0.95)', titleColor:'#111827', bodyColor:'#4b5563', borderColor:'rgba(0,104,178,0.2)', borderWidth: 1, padding:10 },
                 },
             },
         });
@@ -858,14 +874,14 @@ async function runAiAnalysis() {
                     if (ev.done) {
                         refreshQuestionDropdowns();
                         showAiCompletion(ev);
-                        status.style.color = '#6ee7b7'; status.textContent = 'Complete ✓';
+                        status.style.color = '#15803d'; status.textContent = 'Complete ✓';
                     }
-                    if (ev.error) { status.style.color='#fca5a5'; status.textContent = ev.error; }
+                    if (ev.error) { status.style.color='#b91c1c'; status.textContent = ev.error; }
                 } catch(_) {}
             });
         }
     } catch(e) {
-        status.style.color = '#fca5a5'; status.textContent = `Error: ${e.message}`;
+        status.style.color = '#b91c1c'; status.textContent = `Error: ${e.message}`;
     } finally {
         btn.disabled = false; loader.classList.remove('visible');
     }
@@ -884,7 +900,7 @@ async function importJsonResults() {
             await refreshQuestionDropdowns();
             showAiCompletion(data);
         } catch(e) {
-            const s=$('#ai-status'); if(s){s.style.color='#fca5a5'; s.textContent=e.message;}
+            const s=$('#ai-status'); if(s){s.style.color='#b91c1c'; s.textContent=e.message;}
         }
     };
 }
@@ -937,7 +953,7 @@ function renderClusters(encodedKey) {
             html += `<div class="cluster-main-category">${mc.main_category}</div>`;
             (mc.sub_categories || []).forEach((sub, si) => {
                 const count = classifications.filter(c => (c.human_override || c.cluster_id) === sub.id).length;
-                const color = ['#3da8f4','#7be0d4','#C8175D','#d97706','#6366f1','#ec4899'][si % 6];
+                const color = ['#0068B2','#E76863','#C7074D','#4C4193','#d97706','#16a34a'][si % 6];
                 html += `<div class="cluster-sub-card">
                     <div class="cluster-badge" style="background:${color}22;color:${color};border:1px solid ${color}55;">${count}</div>
                     <div style="flex:1;">
@@ -1108,7 +1124,7 @@ async function loadInsights() {
     if (!qs.length) return;
 
     let html = '';
-    const palette = ['#3da8f4','#7be0d4','#C8175D','#d97706','#6366f1','#ec4899','#14b8a6','#a855f7'];
+    const palette = ['#0068B2','#E76863','#C7074D','#4C4193','#d97706','#16a34a','#6366f1','#14b8a6'];
 
     qs.slice(0, 6).forEach((q, qi) => {
         const data = window._clustersData[q];
@@ -1176,13 +1192,13 @@ async function loadInsights() {
                 type: 'doughnut',
                 data: {
                     labels: sorted.map(([lbl]) => lbl.substring(0,25)),
-                    datasets: [{ data: sorted.map(([,n])=>n), backgroundColor: palette, borderWidth: 2, borderColor: 'rgba(3,7,15,0.8)', hoverBorderColor: '#fff' }],
+                    datasets: [{ data: sorted.map(([,n])=>n), backgroundColor: palette, borderWidth: 2, borderColor: '#ffffff', hoverBorderColor: '#0068B2' }],
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     plugins: {
-                        legend: { position:'right', labels: { color:'rgba(180,200,230,0.8)', boxWidth:12, font:{family:"'Space Grotesk'",size:11} } },
-                        tooltip: { backgroundColor:'rgba(5,11,23,0.94)', titleColor:'#f0f6ff', bodyColor:'rgba(180,200,230,0.7)', padding:10 },
+                        legend: { position:'right', labels: { color:'#4b5563', boxWidth:12, font:{family:"'Inter'",size:11} } },
+                        tooltip: { backgroundColor:'rgba(255,255,255,0.95)', titleColor:'#111827', bodyColor:'#4b5563', borderColor:'rgba(0,104,178,0.2)', borderWidth:1, padding:10 },
                     },
                 },
             });
@@ -1266,9 +1282,9 @@ async function generateCurrentSection() {
         }
         _reportSections[_currentSection] = full;
         if (sStatus) sStatus.textContent = '✅';
-        if (statusEl) { statusEl.textContent = 'Generated ✓'; statusEl.style.color = '#6ee7b7'; }
+        if (statusEl) { statusEl.textContent = 'Generated ✓'; statusEl.style.color = '#15803d'; }
     } catch(e) {
-        if (statusEl) { statusEl.textContent = `Error: ${e.message}`; statusEl.style.color = '#fca5a5'; }
+        if (statusEl) { statusEl.textContent = `Error: ${e.message}`; statusEl.style.color = '#b91c1c'; }
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<span>✦</span> Generate';
@@ -1303,7 +1319,7 @@ async function exportReport() {
         URL.revokeObjectURL(url);
     } catch(e) {
         const s = $('#report-gen-status');
-        if (s) { s.textContent = `Export error: ${e.message}`; s.style.color='#fca5a5'; }
+        if (s) { s.textContent = `Export error: ${e.message}`; s.style.color='#b91c1c'; }
     }
 }
 
@@ -1329,13 +1345,13 @@ async function loadSettings() {
 async function saveSettings() {
     const key = $('#input-api-key')?.value.trim();
     const status = $('#settings-status');
-    if (!key) { if(status){status.textContent='Enter an API key first.';status.style.color='#fca5a5';} return; }
+    if (!key) { if(status){status.textContent='Enter an API key first.';status.style.color='#b91c1c';} return; }
     if (status) { status.textContent='Saving & testing…'; status.style.color='var(--particle-blue)'; }
     try {
         const data = await api('/api/settings', { method:'POST', body: JSON.stringify({ api_key: key }) });
-        if (status) { status.textContent = data.message || 'Saved.'; status.style.color = '#6ee7b7'; }
+        if (status) { status.textContent = data.message || 'Saved.'; status.style.color = '#15803d'; }
     } catch(e) {
-        if (status) { status.textContent = `Error: ${e.message}`; status.style.color = '#fca5a5'; }
+        if (status) { status.textContent = `Error: ${e.message}`; status.style.color = '#b91c1c'; }
     }
 }
 
@@ -1353,9 +1369,9 @@ async function clearSession() {
         if (s) { s.textContent = 'Clearing...'; s.style.color = 'var(--particle-blue)'; }
         await api('/api/session/clear', { method: 'POST' });
         _reportSections = {}; window._clustersData = {};
-        if (s) { s.textContent = 'Session cleared. Reloading application...'; s.style.color = '#6ee7b7'; }
+        if (s) { s.textContent = 'Session cleared. Reloading application...'; s.style.color = '#15803d'; }
         setTimeout(() => { location.reload(); }, 600);
     } catch(e) {
-        if (s) { s.textContent = `Error: ${e.message}`; s.style.color = '#fca5a5'; }
+        if (s) { s.textContent = `Error: ${e.message}`; s.style.color = '#b91c1c'; }
     }
 }

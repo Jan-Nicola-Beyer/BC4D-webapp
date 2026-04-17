@@ -4,32 +4,38 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="BC4D Intel — Survey evaluation intelligence platform">
-    <title>BC4D Intel</title>
+    <title>BC4D Intel – Survey Evaluation Platform</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>window.lucide = { createIcons() {} };</script>
 </head>
 <body>
-    <canvas id="particle-canvas"></canvas>
-    <div id="neon-vignette"></div>
-    <div id="neon-frame"></div>
-    <div class="grid-bg"></div>
+    <!-- ── Background Videos (cross-fade system) ── -->
+    <div class="video-background">
+        <video class="bg-video bg-video-active" id="bg-home"     autoplay muted loop playsinline><source src="https://pub-173e2ff12a6940c9a0c46d9538d597bc.r2.dev/home-bg.mp4"     type="video/mp4"></video>
+        <video class="bg-video"                  id="bg-data"    autoplay muted loop playsinline><source src="https://pub-173e2ff12a6940c9a0c46d9538d597bc.r2.dev/data-bg.mp4"     type="video/mp4"></video>
+        <video class="bg-video"                  id="bg-intel"   autoplay muted loop playsinline><source src="https://pub-173e2ff12a6940c9a0c46d9538d597bc.r2.dev/intel-bg.mp4"    type="video/mp4"></video>
+        <video class="bg-video"                  id="bg-settings"autoplay muted loop playsinline><source src="https://pub-173e2ff12a6940c9a0c46d9538d597bc.r2.dev/settings-bg.mp4" type="video/mp4"></video>
+        <div class="video-overlay"></div>
+    </div>
 
     <div class="app-container">
         <nav class="sidebar">
             <div class="brand">
-                <div class="logo"></div>
+                <img src="/static/logos/isd-logo.png" alt="ISD Logo" class="brand-logo">
                 <h2>BC4D Intel</h2>
             </div>
             <ul class="nav-links">
-                <li><a href="#" data-page="import" class="active"><i data-lucide="upload-cloud"></i> Import Data</a></li>
-                <li><a href="#" data-page="dashboard"><i data-lucide="bar-chart-2"></i> Dashboard</a></li>
-                <li><a href="#" data-page="analysis"><i data-lucide="cpu"></i> AI Engine</a></li>
-                <li><a href="#" data-page="clusters"><i data-lucide="network"></i> Clusters</a></li>
-                <li><a href="#" data-page="insights"><i data-lucide="lightbulb"></i> Insights</a></li>
-                <li><a href="#" data-page="responses"><i data-lucide="message-square"></i> Responses</a></li>
-                <li><a href="#" data-page="report"><i data-lucide="layout-template"></i> Report Gen</a></li>
-                <li style="margin-top:auto;"><a href="#" data-page="settings"><i data-lucide="settings"></i> Settings</a></li>
+                <li><a href="#" data-page="import"    data-bg="bg-home"     class="active"><i class="fa-solid fa-cloud-arrow-up"></i> <span>Import Data</span></a></li>
+                <li><a href="#" data-page="dashboard" data-bg="bg-data"><i class="fa-solid fa-chart-column"></i> <span>Dashboard</span></a></li>
+                <li><a href="#" data-page="analysis"  data-bg="bg-intel"><i class="fa-solid fa-microchip"></i> <span>AI Engine</span></a></li>
+                <li><a href="#" data-page="clusters"  data-bg="bg-intel"><i class="fa-solid fa-sitemap"></i> <span>Clusters</span></a></li>
+                <li><a href="#" data-page="insights"  data-bg="bg-intel"><i class="fa-solid fa-lightbulb"></i> <span>Insights</span></a></li>
+                <li><a href="#" data-page="responses" data-bg="bg-data"><i class="fa-solid fa-comment"></i> <span>Responses</span></a></li>
+                <li><a href="#" data-page="report"    data-bg="bg-home"><i class="fa-solid fa-file-lines"></i> <span>Report Gen</span></a></li>
+                <li style="margin-top:auto;"><a href="#" data-page="settings" data-bg="bg-settings"><i class="fa-solid fa-gear"></i> <span>Settings</span></a></li>
             </ul>
         </nav>
 
@@ -46,7 +52,7 @@
                 <div class="cards-grid">
                     <div class="glass-card upload-card">
                         <div class="drop-zone" id="drop-pre">
-                            <i data-lucide="file-spreadsheet"></i>
+                            <i class="fa-solid fa-file-excel"></i>
                             <h3>Pre-Survey</h3>
                             <p id="pre-label">Select Baseline (.xlsx)</p>
                             <input type="file" id="file-pre" accept=".xlsx" hidden>
@@ -54,17 +60,17 @@
                     </div>
                     <div class="glass-card upload-card">
                         <div class="drop-zone" id="drop-post">
-                            <i data-lucide="file-spreadsheet"></i>
+                            <i class="fa-solid fa-file-excel"></i>
                             <h3>Post-Survey</h3>
                             <p id="post-label">Select Outcome (.xlsx)</p>
                             <input type="file" id="file-post" accept=".xlsx" hidden>
                         </div>
                     </div>
                 </div>
-                <div style="display:flex; align-items:center; gap:16px; margin-bottom:2rem; flex-wrap:wrap;">
+                <div style="display:flex; align-items:center; gap:14px; margin-bottom:1.5rem; flex-wrap:wrap;">
                     <button id="btn-process" class="btn-primary" disabled>Initialize Processing</button>
                     <button id="btn-load-demo" class="btn-secondary">
-                        <i data-lucide="flask-conical" style="width:15px;height:15px;"></i>
+                        <i class="fa-solid fa-flask"></i>
                         Load Demo Data
                     </button>
                     <div id="process-loader" class="loader"></div>
@@ -96,44 +102,44 @@
                 <!-- Overview tab -->
                 <div id="dash-tab-overview" class="dash-tab-content active">
                     <div class="stats-grid" style="margin-top:1.5rem;">
-                        <div class="stat-card glass-card">
-                            <div class="stat-icon"><i data-lucide="users"></i></div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fa-solid fa-users"></i></div>
                             <div class="stat-info">
-                                <h2 id="stat-pre" class="counter" style="letter-spacing:-1px; font-size:2.5rem;">0</h2>
-                                <span style="color:var(--text-muted); font-size:13px; font-weight:500; letter-spacing:0.05em; text-transform:uppercase;">Pre-Survey</span>
+                                <h2 id="stat-pre" class="counter" style="font-size:2.4rem;">0</h2>
+                                <span style="font-size:0.72rem; font-weight:700; letter-spacing:1.5px; text-transform:uppercase;">Pre-Survey</span>
                             </div>
                         </div>
-                        <div class="stat-card glass-card">
-                            <div class="stat-icon"><i data-lucide="users"></i></div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fa-solid fa-users"></i></div>
                             <div class="stat-info">
-                                <h2 id="stat-post" class="counter" style="letter-spacing:-1px; font-size:2.5rem;">0</h2>
-                                <span style="color:var(--text-muted); font-size:13px; font-weight:500; letter-spacing:0.05em; text-transform:uppercase;">Post-Survey</span>
+                                <h2 id="stat-post" class="counter" style="font-size:2.4rem;">0</h2>
+                                <span style="font-size:0.72rem; font-weight:700; letter-spacing:1.5px; text-transform:uppercase;">Post-Survey</span>
                             </div>
                         </div>
-                        <div class="stat-card glass-card highlight">
-                            <div class="stat-icon"><i data-lucide="link"></i></div>
+                        <div class="stat-card highlight">
+                            <div class="stat-icon"><i class="fa-solid fa-link"></i></div>
                             <div class="stat-info">
-                                <h2 id="stat-matched" class="counter" style="letter-spacing:-1px; font-size:2.5rem;">0</h2>
-                                <span style="color:var(--text-muted); font-size:13px; font-weight:500; letter-spacing:0.05em; text-transform:uppercase;">Matched Pairs</span>
+                                <h2 id="stat-matched" class="counter" style="font-size:2.4rem;">0</h2>
+                                <span style="font-size:0.72rem; font-weight:700; letter-spacing:1.5px; text-transform:uppercase;">Matched Pairs</span>
                             </div>
                         </div>
                     </div>
-                    <div class="glass-card" style="margin-top:2rem;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+                    <div class="glass-card" style="margin-top:1.5rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; flex-wrap:wrap; gap:0.75rem;">
                             <div>
-                                <h3 style="font-weight:600; font-size:1.1rem; letter-spacing:-0.3px;">Match Efficiency</h3>
+                                <h3 style="font-weight:600; font-size:1.1rem; letter-spacing:-0.3px; color:var(--text-main);">Match Efficiency</h3>
                                 <p style="color:var(--text-muted); font-size:0.85rem; margin-top:0.3rem;">Panel pairing statistics</p>
                             </div>
                             <div style="display:flex; gap:0.5rem;">
-                                <button id="export-chart-btn" class="btn-primary" style="padding: 0.55rem 1.4rem; font-size:0.85rem;">
-                                    <i data-lucide="image" style="width:14px; height:14px;"></i> Export Chart
+                                <button id="export-chart-btn" class="btn-primary" style="padding:0.5rem 1.15rem; font-size:0.82rem;">
+                                    <i class="fa-solid fa-image"></i> Export Chart
                                 </button>
-                                <button class="btn-secondary" style="padding: 0.55rem 1.4rem; font-size:0.85rem;" onclick="window.location.href='/api/export/data/matched'">
-                                    <i data-lucide="database" style="width:14px; height:14px;"></i> Export Data
+                                <button class="btn-secondary" style="padding:0.5rem 1.15rem; font-size:0.82rem;" onclick="window.location.href='/api/export/data/matched'">
+                                    <i class="fa-solid fa-database"></i> Export Data
                                 </button>
                             </div>
                         </div>
-                        <div style="height:360px; position:relative;">
+                        <div style="height:340px; position:relative;">
                             <canvas id="matchChart"></canvas>
                         </div>
                     </div>
@@ -176,57 +182,57 @@
                 <div class="line-draw"></div>
 
                 <!-- AI Info Banner -->
-                <div class="glass-card info-banner" style="margin-bottom:1.5rem;">
-                    <div class="info-banner-icon"><i data-lucide="info" style="width:20px;height:20px;"></i></div>
+                <div class="glass-card info-banner" style="margin-bottom:1.25rem;">
+                    <div class="info-banner-icon"><i class="fa-solid fa-circle-info"></i></div>
                     <div>
-                        <h3 style="font-size:1rem; font-weight:600; margin-bottom:0.5rem;">How Free-Text Analysis Works</h3>
-                        <p style="color:var(--text-muted); font-size:0.9rem; line-height:1.7;">The AI reads all open-ended responses, designs thematic categories, then classifies each response. Responses already seen in a previous staffel are recognised automatically (free). Results can be exported as JSON and shared with colleagues.</p>
+                        <h3 style="font-size:1rem; font-weight:600; margin-bottom:0.5rem; color:var(--text-main);">How Free-Text Analysis Works</h3>
+                        <p style="color:var(--text-muted); font-size:0.9rem; line-height:1.65;">The AI reads all open-ended responses, designs thematic categories, then classifies each response. Responses already seen in a previous staffel are recognised automatically (free). Results can be exported as JSON and shared with colleagues.</p>
                     </div>
                 </div>
 
                 <!-- Estimate card -->
-                <div class="glass-card" style="margin-bottom:1.5rem;">
-                    <h3 style="font-weight:600; margin-bottom:0.75rem;">Cost & Time Estimate</h3>
-                    <p id="ai-estimate-text" style="color:var(--text-muted); font-size:0.9rem; line-height:1.7;">Load survey data first to see cost and time estimates.</p>
+                <div class="glass-card" style="margin-bottom:1.25rem;">
+                    <h3 style="font-weight:600; margin-bottom:0.6rem; color:var(--text-main);">Cost &amp; Time Estimate</h3>
+                    <p id="ai-estimate-text" style="color:var(--text-muted); font-size:0.9rem; line-height:1.65;">Load survey data first to see cost and time estimates.</p>
                 </div>
 
                 <!-- Action card -->
                 <div class="glass-card">
-                    <h3 style="font-weight:600; margin-bottom:0.75rem;">Semantic Clustering Pipeline</h3>
-                    <p style="color:var(--text-muted); margin-bottom:2rem; line-height:1.7;">Engage the backend Claude models to classify responses into taxonomic clusters.</p>
-                    <div style="display:flex; align-items:center; gap:1.25rem; flex-wrap:wrap;">
+                    <h3 style="font-weight:600; margin-bottom:0.6rem; color:var(--text-main);">Semantic Clustering Pipeline</h3>
+                    <p style="color:var(--text-muted); margin-bottom:1.5rem; line-height:1.65;">Engage the backend Claude models to classify responses into taxonomic clusters.</p>
+                    <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
                         <button class="btn-primary" id="btn-run-ai">
-                            <i data-lucide="zap" style="width:16px; height:16px;"></i>
+                            <i class="fa-solid fa-bolt"></i>
                             Execute Model Pipeline
                         </button>
                         <button class="btn-secondary" id="btn-import-results">
-                            <i data-lucide="file-input" style="width:16px; height:16px;"></i>
+                            <i class="fa-solid fa-file-import"></i>
                             Import JSON Results
                         </button>
                         <div id="ai-loader" class="loader"></div>
                         <span id="ai-status"></span>
                     </div>
                     <!-- Progress area -->
-                    <div id="ai-progress-area" style="display:none; margin-top:1.5rem;">
+                    <div id="ai-progress-area" style="display:none; margin-top:1.25rem;">
                         <div class="progress-bar-track">
                             <div class="progress-bar-fill" id="ai-progress-bar" style="width:0%"></div>
                         </div>
                         <div style="display:flex; justify-content:space-between; margin-top:0.5rem;">
                             <span id="ai-progress-detail" style="color:var(--text-muted); font-size:0.85rem;"></span>
-                            <span id="ai-progress-pct" style="color:var(--particle-blue); font-size:0.85rem; font-weight:600;">0%</span>
+                            <span id="ai-progress-pct" style="color:var(--isd-red); font-size:0.85rem; font-weight:700;">0%</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Completion card — shown after analysis -->
-                <div id="ai-completion-card" style="display:none; margin-top:1.5rem;">
+                <div id="ai-completion-card" style="display:none; margin-top:1.25rem;">
                     <div class="glass-card success-card">
-                        <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem;">
-                            <i data-lucide="check-circle" style="color:#c4ef8e; width:24px; height:24px;"></i>
-                            <h3 style="font-weight:600; color:#c4ef8e;">Analysis Complete</h3>
+                        <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
+                            <i class="fa-solid fa-circle-check" style="color:#15803d; font-size:1.2rem;"></i>
+                            <h3 style="font-weight:600; color:#15803d;">Analysis Complete</h3>
                         </div>
-                        <p id="ai-completion-stats" style="color:var(--text-muted); margin-bottom:1.5rem; line-height:1.7;"></p>
-                        <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+                        <p id="ai-completion-stats" style="color:var(--text-muted); margin-bottom:1.25rem; line-height:1.65;"></p>
+                        <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
                             <button class="btn-primary" onclick="document.querySelector('[data-page=clusters]').click()">View Clusters →</button>
                             <button class="btn-primary" onclick="document.querySelector('[data-page=responses]').click()">View Responses →</button>
                         </div>
@@ -241,7 +247,7 @@
                     <p>Review the AI-generated thematic categories per question.</p>
                 </div>
                 <div class="line-draw"></div>
-                <div style="margin-bottom:1.5rem;">
+                <div style="margin-bottom:1.25rem;">
                     <select id="clusters-question-select" class="styled-select">
                         <option value="">— Select a question —</option>
                     </select>
@@ -274,8 +280,8 @@
                     <p>Audit and override AI categorized qualitative answers.</p>
                 </div>
                 <div class="line-draw"></div>
-                <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
-                    <select id="responses-question-select" class="styled-select" style="flex:1; min-width:300px;">
+                <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1.25rem; flex-wrap:wrap;">
+                    <select id="responses-question-select" class="styled-select" style="flex:1; min-width:280px;">
                         <option value="">— Select a question —</option>
                     </select>
                     <div class="filter-pills" id="conf-filter">
@@ -285,7 +291,7 @@
                         <button class="pill" data-conf="low">Low</button>
                         <button class="pill" data-conf="reassigned">Reassigned</button>
                     </div>
-                    <button class="btn-primary" id="btn-add-category" style="padding:0.45rem 1rem;font-size:0.8rem;" onclick="showAddCategoryModal()">+ Add Category</button>
+                    <button class="btn-primary" id="btn-add-category" style="padding:0.45rem 1rem;font-size:0.82rem;" onclick="showAddCategoryModal()">+ Add Category</button>
                     <span id="responses-count" style="color:var(--text-muted); font-size:0.85rem;"></span>
                 </div>
                 <div id="responses-content">
@@ -308,28 +314,28 @@
                     <!-- Section list -->
                     <div class="report-sections-panel glass-card">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-                            <h3 style="font-weight:600; font-size:0.95rem;">Report Sections</h3>
-                            <button class="btn-primary" id="btn-gen-all-sections" style="padding:0.4rem 1rem; font-size:0.8rem;">Generate All</button>
+                            <h3 style="font-weight:600; font-size:0.95rem; color:var(--text-main);">Report Sections</h3>
+                            <button class="btn-primary" id="btn-gen-all-sections" style="padding:0.4rem 0.9rem; font-size:0.78rem;">Generate All</button>
                         </div>
                         <div id="report-section-list">
                             <!-- populated by JS -->
                         </div>
-                        <div style="margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--border-color);">
+                        <div style="margin-top:1.25rem; padding-top:1rem; border-top:1px solid var(--border-color);">
                             <button class="btn-primary" id="btn-gen-report" style="width:100%;">
-                                <i data-lucide="file-text" style="width:16px; height:16px;"></i> Export DOCX
+                                <i class="fa-solid fa-file-lines"></i> Export DOCX
                             </button>
                         </div>
                     </div>
 
                     <!-- Editor panel -->
                     <div class="report-editor-panel">
-                        <div class="glass-card" style="margin-bottom:1rem; padding:1rem 1.5rem;">
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <h3 id="report-current-section-title" style="font-weight:600;">Select a section to edit</h3>
+                        <div class="glass-card" style="margin-bottom:1rem; padding:0.85rem 1.25rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+                                <h3 id="report-current-section-title" style="font-weight:600; color:var(--text-main); font-size:1rem;">Select a section to edit</h3>
                                 <div style="display:flex; gap:0.75rem; align-items:center;">
                                     <span id="report-gen-status" style="font-size:0.85rem; color:var(--text-muted);"></span>
-                                    <button class="btn-primary" id="btn-gen-section" style="padding:0.5rem 1.2rem; font-size:0.85rem;" disabled>
-                                        <i data-lucide="sparkles" style="width:14px; height:14px;"></i> Generate
+                                    <button class="btn-primary" id="btn-gen-section" style="padding:0.5rem 1.1rem; font-size:0.82rem;" disabled>
+                                        <i class="fa-solid fa-wand-magic-sparkles"></i> Generate
                                     </button>
                                 </div>
                             </div>
@@ -351,33 +357,33 @@
 
                 <!-- API Key -->
                 <div class="glass-card settings-card">
-                    <h3 style="margin-bottom:0.5rem; font-weight:600;">Anthropic API Key</h3>
-                    <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.25rem;">Required for AI tagging (Haiku) and report generation (Sonnet).</p>
+                    <h3 style="margin-bottom:0.4rem; font-weight:600; color:var(--text-main);">Anthropic API Key</h3>
+                    <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1rem;">Required for AI tagging (Haiku) and report generation (Sonnet).</p>
                     <div style="display:flex; gap:0.75rem;">
                         <input type="password" id="input-api-key" placeholder="sk-ant-api03-..." class="styled-input" style="flex:1;">
-                        <button class="btn-primary" id="btn-save-settings">Save & Test</button>
+                        <button class="btn-primary" id="btn-save-settings">Save &amp; Test</button>
                     </div>
                     <span id="settings-status" style="display:block; margin-top:0.75rem; font-size:0.9rem;"></span>
                 </div>
 
                 <!-- Model Routing -->
                 <div class="glass-card settings-card">
-                    <h3 style="margin-bottom:0.5rem; font-weight:600;">Model Routing</h3>
-                    <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.25rem;">Fixed routing — optimized for cost and quality.</p>
+                    <h3 style="margin-bottom:0.4rem; font-weight:600; color:var(--text-main);">Model Routing</h3>
+                    <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1rem;">Fixed routing — optimized for cost and quality.</p>
                     <div class="model-table">
                         <div class="model-row"><span class="model-task">Taxonomy design</span><span class="model-name">claude-sonnet-4-6</span></div>
                         <div class="model-row"><span class="model-task">Response classification</span><span class="model-name">claude-haiku-4-5</span></div>
                         <div class="model-row"><span class="model-task">Report writing</span><span class="model-name">claude-sonnet-4-6</span></div>
                     </div>
-                    <p style="color:var(--text-muted); font-size:0.85rem; margin-top:1rem; line-height:1.7;">
+                    <p style="color:var(--text-muted); font-size:0.85rem; margin-top:0.9rem; line-height:1.65;">
                         Estimated cost per cohort: ~$0.10/100 responses · Report: ~$0.25 · Typical total: $0.30–0.60
                     </p>
                 </div>
 
                 <!-- Staffel Config -->
                 <div class="glass-card settings-card">
-                    <h3 style="margin-bottom:0.5rem; font-weight:600;">Staffel Configuration</h3>
-                    <div style="display:flex; gap:0.75rem; align-items:center; margin-top:1rem;">
+                    <h3 style="margin-bottom:0.4rem; font-weight:600; color:var(--text-main);">Staffel Configuration</h3>
+                    <div style="display:flex; gap:0.75rem; align-items:center; margin-top:0.9rem; flex-wrap:wrap;">
                         <label style="color:var(--text-muted); font-size:0.9rem; white-space:nowrap;">Name:</label>
                         <input type="text" id="input-staffel-name" placeholder="e.g., Staffel 13" class="styled-input" style="flex:1; max-width:300px;">
                         <button class="btn-secondary" id="btn-save-staffel">Save</button>
@@ -386,8 +392,8 @@
 
                 <!-- Session Info -->
                 <div class="glass-card settings-card">
-                    <h3 style="margin-bottom:0.5rem; font-weight:600;">Session</h3>
-                    <div id="session-info" style="color:var(--text-muted); font-size:0.9rem; line-height:2; margin:1rem 0;"></div>
+                    <h3 style="margin-bottom:0.4rem; font-weight:600; color:var(--text-main);">Session</h3>
+                    <div id="session-info" style="color:var(--text-muted); font-size:0.9rem; line-height:1.9; margin:0.75rem 0;"></div>
                     <button class="btn-secondary" id="btn-clear-session">Clear Session</button>
                     <span id="session-clear-status" style="margin-left:1rem; font-size:0.85rem;"></span>
                 </div>
@@ -397,21 +403,21 @@
     </div>
 
     <!-- Modals -->
-    <div id="add-category-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
-        <div class="glass-card" style="width:100%; max-width:400px; padding:2rem;">
-            <h3 style="font-weight:600; margin-bottom:1.5rem;">Add New Category</h3>
-            
-            <div style="margin-bottom:1rem;">
-                <label style="display:block; margin-bottom:0.5rem; color:var(--text-muted); font-size:0.9rem;">Main Category</label>
+    <div id="add-category-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:9999; align-items:center; justify-content:center;">
+        <div class="glass-card" style="width:100%; max-width:400px; padding:1.75rem;">
+            <h3 style="font-weight:600; margin-bottom:1.25rem; color:var(--text-main);">Add New Category</h3>
+
+            <div style="margin-bottom:0.9rem;">
+                <label style="display:block; margin-bottom:0.4rem; color:var(--text-muted); font-size:0.9rem; font-weight:500;">Main Category</label>
                 <input type="text" id="add-cat-main" class="styled-input" style="width:100%;" placeholder="e.g. Verbesserungsvorschläge">
             </div>
-            
-            <div style="margin-bottom:1.5rem;">
-                <label style="display:block; margin-bottom:0.5rem; color:var(--text-muted); font-size:0.9rem;">Sub Category (Cluster)</label>
+
+            <div style="margin-bottom:1.25rem;">
+                <label style="display:block; margin-bottom:0.4rem; color:var(--text-muted); font-size:0.9rem; font-weight:500;">Sub Category (Cluster)</label>
                 <input type="text" id="add-cat-sub" class="styled-input" style="width:100%;" placeholder="e.g. Zeitliche Flexibilität">
             </div>
-            
-            <div style="display:flex; justify-content:flex-end; gap:1rem;">
+
+            <div style="display:flex; justify-content:flex-end; gap:0.75rem;">
                 <button class="btn-secondary" onclick="$('#add-category-modal').style.display='none'">Cancel</button>
                 <button class="btn-primary" onclick="submitNewCategory()">Create Category</button>
             </div>
