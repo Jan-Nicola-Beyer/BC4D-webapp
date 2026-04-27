@@ -715,7 +715,7 @@ async def run_analysis():
                 if role == "free_text" and col in df.columns:
                     responses = [r for r in df[col].dropna().astype(str).tolist() if len(r.strip()) > 5]
                     if len(responses) >= 5:
-                        label = f"[{survey_type}] {col[:45]}"
+                        label = f"[{survey_type}] {col}"
                         all_ft.append((label, col, responses))
 
         total_q = len(all_ft)

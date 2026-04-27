@@ -6,6 +6,29 @@
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => [...ctx.querySelectorAll(sel)];
 
+// Word-wrap a label into an array of lines for Chart.js tick rendering.
+// Hard-truncates with an ellipsis once `maxLines` is reached.
+function wrapLabel(text, maxChars = 32, maxLines = 3) {
+    if (!text) return '';
+    const words = String(text).split(/\s+/);
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+        const next = cur ? cur + ' ' + w : w;
+        if (next.length <= maxChars) { cur = next; continue; }
+        if (cur) lines.push(cur);
+        if (lines.length >= maxLines) { cur = ''; break; }
+        cur = w.length > maxChars ? w.slice(0, maxChars - 1) + '…' : w;
+    }
+    if (cur && lines.length < maxLines) lines.push(cur);
+    const rendered = lines.join(' ');
+    if (rendered.length < text.length) {
+        const last = lines[lines.length - 1] || '';
+        lines[lines.length - 1] = (last.length >= maxChars ? last.slice(0, maxChars - 1) : last) + '…';
+    }
+    return lines.length === 1 ? lines[0] : lines;
+}
+
 /* ── 1. WEBGL / 2D PARTICLE ENGINE ──────────────────────────────────────── */
 (function initParticles() {
     const canvas = $('#particle-canvas');
@@ -595,7 +618,7 @@ function buildLikertSection(items, title, key) {
     const rows = items.map(item => {
         const s = item.stats, pct = s.pct_agree || 0, pct_d = s.pct_disagree || 0;
         return `<tr>
-            <td style="max-width:260px; font-size:0.85rem; padding:0.5rem 0.75rem;">${item.label}</td>
+            <td style="max-width:320px; font-size:0.85rem; padding:0.5rem 0.75rem; white-space:normal; word-break:break-word; line-height:1.35;">${item.label}</td>
             <td style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem 0.75rem;">${s.n}</td>
             <td style="color:var(--particle-blue);font-weight:600;font-size:0.85rem;padding:0.5rem 0.75rem;">${s.mean}</td>
             <td style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem 0.75rem;">${s.sd}</td>
@@ -618,7 +641,7 @@ function buildLikertSection(items, title, key) {
                 </button>
             </div>
         </div>
-        <div style="height:300px; position:relative; margin-bottom:1.5rem;">
+        <div style="height:${Math.max(300, items.length * 46)}px; position:relative; margin-bottom:1.5rem;">
             <canvas id="${chartId}"></canvas>
         </div>
         <div class="chart-full" style="overflow-x:auto;">
@@ -635,7 +658,7 @@ function buildDistributionChart(canvasId, items, key) {
         const ctx = $(`#${canvasId}`);
         if (!ctx) return;
         if (window._tabCharts[key]) { window._tabCharts[key].destroy(); }
-        const labels = items.map(it => it.label.substring(0, 35) + (it.label.length > 35 ? '…' : ''));
+        const labels = items.map(it => it.label);
         const means  = items.map(it => it.stats.mean || 0);
         const sds    = items.map(it => it.stats.sd || 0);
 
@@ -671,7 +694,7 @@ function buildDistributionChart(canvasId, items, key) {
                 },
                 scales: {
                     x: { min: 0, max: 5, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#4b5563' } },
-                    y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#4b5563', font: { size: 10 } } },
+                    y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#4b5563', font: { size: 10 }, autoSkip: false, callback: function(v) { return wrapLabel(this.getLabelForValue(v), 32, 3); } } },
                 },
             },
         });
@@ -685,7 +708,7 @@ function buildMatchedSection(comparisons) {
         const color = ch > 0.1 ? '#15803d' : ch < -0.1 ? '#b91c1c' : 'var(--text-muted)';
         const arrow = ch > 0.1 ? '▲' : ch < -0.1 ? '▼' : '→';
         return `<tr>
-            <td style="font-size:0.85rem;max-width:240px;padding:0.5rem 0.75rem;">${c.label}</td>
+            <td style="font-size:0.85rem;max-width:320px;padding:0.5rem 0.75rem;white-space:normal;word-break:break-word;line-height:1.35;">${c.label}</td>
             <td style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem 0.75rem;">${comp.pre_mean ?? '—'}</td>
             <td style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem 0.75rem;">${comp.post_mean ?? '—'}</td>
             <td style="color:${color};font-weight:600;font-size:0.85rem;padding:0.5rem 0.75rem;">${arrow} ${ch > 0 ? '+' : ''}${ch ?? '—'}</td>
@@ -709,7 +732,7 @@ function buildMatchedSection(comparisons) {
                 </button>
             </div>
         </div>
-        <div style="height:280px; position:relative; margin-bottom:1.5rem;">
+        <div style="height:${Math.max(300, comparisons.length * 46)}px; position:relative; margin-bottom:1.5rem;">
             <canvas id="matched-waterfall-chart"></canvas>
         </div>
         <div class="chart-full" style="overflow-x:auto;">
@@ -725,7 +748,7 @@ function buildWaterfallChart(canvasId, comparisons) {
         const ctx = $(`#${canvasId}`);
         if (!ctx) return;
         if (window._tabCharts['matched']) { window._tabCharts['matched'].destroy(); }
-        const labels  = comparisons.map(c => c.label.substring(0, 30) + '…');
+        const labels  = comparisons.map(c => c.label);
         const changes  = comparisons.map(c => c.comparison.mean_change ?? 0);
         const bgColors = changes.map(v => v > 0 ? 'rgba(22,163,74,0.55)' : v < 0 ? 'rgba(199,7,77,0.55)' : 'rgba(107,114,128,0.4)');
 
@@ -744,7 +767,7 @@ function buildWaterfallChart(canvasId, comparisons) {
                 },
                 scales: {
                     x: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#4b5563' } },
-                    y: { grid: {display:false}, ticks: { color: '#4b5563', font: { size: 9 } } },
+                    y: { grid: {display:false}, ticks: { color: '#4b5563', font: { size: 9 }, autoSkip: false, callback: function(v) { return wrapLabel(this.getLabelForValue(v), 32, 3); } } },
                 },
             },
         });
@@ -770,7 +793,7 @@ function buildDemographicsSection(demographics, key) {
         const rows = Object.entries(s.percentages).sort((a, b) => b[1] - a[1]).map(([cat, pct]) => {
             const count = s.categories[cat] || 0;
             return `<tr>
-                <td style="max-width:260px; font-size:0.85rem; padding:0.5rem 0.75rem;">${cat}</td>
+                <td style="max-width:320px; font-size:0.85rem; padding:0.5rem 0.75rem; white-space:normal; word-break:break-word; line-height:1.35;">${cat}</td>
                 <td style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem 0.75rem;">${count}</td>
                 <td style="padding:0.5rem 0.75rem; min-width:160px;">
                     <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
@@ -929,7 +952,7 @@ async function loadClusters() {
         const sel = $('#clusters-question-select');
         if (!sel) return;
         sel.innerHTML = '<option value="">— Select a question —</option>' +
-            qs.map(q => `<option value="${encodeURIComponent(q)}">${q.replace(/^\[(Pre|Post)\] /,'').substring(0,70)}</option>`).join('');
+            qs.map(q => `<option value="${encodeURIComponent(q)}" title="${q.replace(/"/g,'&quot;')}">${q.replace(/^\[(Pre|Post)\] /,'')}</option>`).join('');
         if (qs.length) { sel.value = encodeURIComponent(qs[0]); renderClusters(encodeURIComponent(qs[0])); }
     } catch(e) { console.warn('Clusters:', e.message); }
 }
@@ -980,7 +1003,7 @@ async function refreshQuestionDropdowns() {
         window._clustersData = data;
         const qs = Object.keys(data);
         const opts = '<option value="">— Select a question —</option>' +
-            qs.map(q => `<option value="${encodeURIComponent(q)}">${q.replace(/^\[(Pre|Post)\] /,'').substring(0,70)}</option>`).join('');
+            qs.map(q => `<option value="${encodeURIComponent(q)}" title="${q.replace(/"/g,'&quot;')}">${q.replace(/^\[(Pre|Post)\] /,'')}</option>`).join('');
         [$('#clusters-question-select'), $('#responses-question-select')].forEach(sel => {
             if (sel) sel.innerHTML = opts;
         });

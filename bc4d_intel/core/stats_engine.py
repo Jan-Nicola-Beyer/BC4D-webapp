@@ -201,10 +201,9 @@ def practical_transfer_stats(df: pd.DataFrame, roles: Dict[str, str]) -> List[Di
         # 3+ = "manchmal" or better = "applied"
         n_applied = int((clean >= 3).sum())
         pct_applied = round(n_applied / n * 100, 1)
-        label = col[:55] if len(col) <= 55 else col[:52] + "..."
         results.append({
             "column": col,
-            "label": label,
+            "label": col,
             "n": n,
             "n_applied": n_applied,
             "pct_applied": pct_applied,
@@ -222,8 +221,7 @@ def analyze_all_likert(df: pd.DataFrame, roles: Dict[str, str]) -> List[Dict]:
         if role in ("likert", "frequency", "relevance"):
             series = normalize_likert_column(df[col])
             stats = descriptive_stats(series)
-            label = col[:60] if len(col) <= 60 else col[:57] + "..."
-            results.append({"column": col, "label": label, "role": role, "stats": stats})
+            results.append({"column": col, "label": col, "role": role, "stats": stats})
     return results
 
 
@@ -271,10 +269,9 @@ def analyze_matched_likert(
             pre_series = normalize_likert_column(matched_df[pre_merged])
             post_series = normalize_likert_column(matched_df[post_merged])
             comparison = paired_comparison(pre_series, post_series, bonferroni_n=n_tests)
-            label = pre_col[:55] if len(pre_col) <= 55 else pre_col[:52] + "..."
             results.append({
                 "pre_column": pre_col, "post_column": post_col,
-                "label": label, "match_ratio": round(ratio, 2),
+                "label": pre_col, "match_ratio": round(ratio, 2),
                 "comparison": comparison,
             })
 
@@ -287,6 +284,5 @@ def analyze_demographics(df: pd.DataFrame, roles: Dict[str, str]) -> List[Dict]:
     for col, role in roles.items():
         if role == "demographic":
             stats = frequency_stats(df[col])
-            label = col[:60] if len(col) <= 60 else col[:57] + "..."
-            results.append({"column": col, "label": label, "role": role, "stats": stats})
+            results.append({"column": col, "label": col, "role": role, "stats": stats})
     return results
