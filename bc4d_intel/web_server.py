@@ -11,6 +11,7 @@ from bc4d_intel.app_state import AppState
 from bc4d_intel.core.data_loader import load_survey
 from bc4d_intel.core.panel_matcher import match_panels
 from bc4d_intel.constants import SESSION_DIR
+from bc4d_intel import claude_health
 
 
 class ReassignRequest(BaseModel):
@@ -49,9 +50,26 @@ app.add_middleware(
     allow_methods=["*"], allow_headers=["*"],
 )
 
-static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+_app_dir = os.path.dirname(os.path.abspath(__file__))
+static_dir = os.path.join(_app_dir, "static")
 os.makedirs(static_dir, exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+
+@app.on_event("startup")
+def _startup_health_check():
+    claude_health.run_startup_check(
+        app_name="BC4D Intel",
+        app_root=_app_dir,
+        required_imports=["anthropic", "fastapi", "pandas", "openpyxl"],
+        required_paths=[SESSION_DIR],
+        requirements_file=os.path.join(_app_dir, "requirements.txt"),
+    )
+
+
+@app.get("/health")
+def health():
+    return claude_health.health_report()
 
 # ── In-memory match result (cleared on session clear) ─────────────────────────
 _match_result: Optional[dict] = None
@@ -124,7 +142,7 @@ def _get_match_result():
 # ══════════════════════════════════════════════════════════════════════════════
 @app.get("/")
 def redirect_to_app():
-    return RedirectResponse(url="/static/index.html")
+    return RedirectResponse(url="/static/intro.html")
 
 
 # ══════════════════════════════════════════════════════════════════════════════

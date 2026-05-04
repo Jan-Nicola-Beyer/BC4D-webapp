@@ -91,8 +91,8 @@ from bc4d_intel.core.answer_cache import _normalize_question
 
 test_cases = [
     ("[Pre] Was erhoffen Sie sich? (offene Frage)", "was erhoffen sie sich?"),
-    ("[Post] Bitte nennen Sie Starken.", "bitte nennen sie staerken."),
-    ("Verbesserungsmoglichkeiten (Angabe)", "verbesserungsmoeglichkeiten"),
+    ("[Post] Bitte nennen Sie Stärken.", "bitte nennen sie staerken."),
+    ("Verbesserungsmöglichkeiten (Angabe)", "verbesserungsmoeglichkeiten"),
 ]
 all_norm_ok = True
 for raw, expected in test_cases:
@@ -228,6 +228,10 @@ print("\n--- 7. QUALITY GATE ---\n")
 
 from bc4d_intel.core.answer_cache import quality_gate
 
+# quality_gate short-circuits with `(True, [])` when fewer than 10 classifications
+# are supplied — duplicate the 4-item fixture to exceed that threshold.
+classified_for_gate = (classified * 3)[:12]
+
 # Mock Sonnet — all OK
 def mock_sonnet_ok(system, user_msg, task="report", api_key="", max_tokens=800, stream_cb=None):
     import re
@@ -235,7 +239,7 @@ def mock_sonnet_ok(system, user_msg, task="report", api_key="", max_tokens=800, 
     return json.dumps([{"id": int(i), "verdict": "OK"} for i in ids])
 
 with patch("bc4d_intel.ai.claude_client.call_claude", side_effect=mock_sonnet_ok):
-    passed, corrections = quality_gate("test", classified, test_taxonomy, "mock-key")
+    passed, corrections = quality_gate("test", classified_for_gate, test_taxonomy, "mock-key")
 
 record("quality_gate_pass", passed and len(corrections) == 0,
        f"Passed: {passed}, Corrections: {len(corrections)}")
@@ -255,7 +259,7 @@ def mock_sonnet_fail(system, user_msg, task="report", api_key="", max_tokens=800
     return json.dumps(results)
 
 with patch("bc4d_intel.ai.claude_client.call_claude", side_effect=mock_sonnet_fail):
-    passed2, corrections2 = quality_gate("test", classified, test_taxonomy, "mock-key")
+    passed2, corrections2 = quality_gate("test", classified_for_gate, test_taxonomy, "mock-key")
 
 record("quality_gate_fail_detection", not passed2 and len(corrections2) > 0,
        f"Correctly failed: passed={passed2}, corrections={len(corrections2)}")
@@ -295,9 +299,9 @@ analysis_output = {
         {"id": "cat_1a", "title": "Trainer Lob", "main_category": "Positiv",
          "description": "Lob fuer Trainer", "count": 2},
         {"id": "cat_1b", "title": "Inhalt positiv", "main_category": "Positiv",
-         "description": "Positive Inhaltsbewertung", "count": 1},
+         "description": "Positive Inhaltsbewertung", "count": 0},
         {"id": "cat_2a", "title": "Zeitkritik", "main_category": "Kritik",
-         "description": "Zeitbezogene Kritik", "count": 1},
+         "description": "Zeitbezogene Kritik", "count": 2},
     ],
     "classifications": classified,
 }

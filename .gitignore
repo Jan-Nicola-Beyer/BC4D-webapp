@@ -7,3 +7,4 @@ sessions/
 ~$*
 dist/
 build/
+test_chart_audit_output/
